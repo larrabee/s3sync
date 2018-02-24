@@ -5,12 +5,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	//"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
-	//"bufio"
 )
 
 type awsConn struct {
@@ -22,22 +19,23 @@ type awsConn struct {
 }
 
 type syncGroup struct {
-	Source awsConn
-	Target awsConn
+	Source    awsConn
+	Target    awsConn
+	TableName string
 }
 
 type object struct {
-	SyncGroup *syncGroup
-	Key       string
-	ETag      string
-	ErrCount  int
-	Content   []byte
-  ContentType string
+	SyncGroup   *syncGroup
+	Key         string
+	ETag        string
+	ErrCount    int
+	Content     []byte
+	ContentType string
 }
 
 func (self *awsConn) Configure(connName string) error {
 	if !cfg.IsSet(fmt.Sprintf("connections.%s", connName)) {
-		return errors.New(fmt.Sprintf("Connection 'connections.%s' not exist in config file", connName))
+		return fmt.Errorf("Connection 'connections.%s' not exist in config file", connName)
 	}
 	cred := credentials.NewStaticCredentials(cfg.GetString(fmt.Sprintf("connections.%s.awsAccessKey", connName)), cfg.GetString(fmt.Sprintf("connections.%s.awsSecretKey", connName)), "")
 	awsConfig := aws.NewConfig()
@@ -82,7 +80,7 @@ func (self *object) GetContent() error {
 	}
 
 	self.Content, err = ioutil.ReadAll(result.Body)
-  self.ContentType = aws.StringValue(result.ContentType)
+	self.ContentType = aws.StringValue(result.ContentType)
 	if err != nil {
 		return err
 	}
@@ -91,10 +89,10 @@ func (self *object) GetContent() error {
 
 func (self *object) PutContent() error {
 	_, err := self.SyncGroup.Target.awsSvc.PutObject(&s3.PutObjectInput{
-		Bucket: aws.String(self.SyncGroup.Target.awsBucket),
-		Key:    aws.String(self.Key),
-		Body:   bytes.NewReader(self.Content),
-    ContentType: aws.String(self.ContentType),
+		Bucket:      aws.String(self.SyncGroup.Target.awsBucket),
+		Key:         aws.String(self.Key),
+		Body:        bytes.NewReader(self.Content),
+		ContentType: aws.String(self.ContentType),
 	})
 	if err != nil {
 		return err

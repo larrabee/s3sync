@@ -35,11 +35,8 @@ func main() {
 		fmt.Printf("Cannot connect to mysql: %s", err)
 		os.Exit(1)
 	}
-  dbConn.SetMaxIdleConns(cfg.GetInt("sync.workers"))
-	if err = dbInit("source"); err != nil {
-		fmt.Printf("Cannot init db: %s", err)
-		os.Exit(1)
-	}
+
+	dbConn.SetMaxIdleConns(cfg.GetInt("sync.workers"))
 
 	objChan = make(chan object, cfg.GetInt("sync.workers")*2)
 	failObjChan = make(chan object, cfg.GetInt("sync.workers")*2)
@@ -52,6 +49,13 @@ func main() {
 
 	if err2 := sync.Target.Configure("target"); err2 != nil {
 		fmt.Printf("Connection configure failed: %s\n", err2)
+		os.Exit(1)
+	}
+
+	sync.TableName = "sync_from_" + sync.Source.awsBucket + "_to_" + sync.Target.awsBucket
+
+	if err = dbInit(sync.TableName); err != nil {
+		fmt.Printf("Cannot init db: %s", err)
 		os.Exit(1)
 	}
 
