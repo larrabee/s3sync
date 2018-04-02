@@ -2,93 +2,103 @@ package main
 
 import (
 	"fmt"
-
-	// "os"
-	// "reflect"
-	"time"
-
-	"github.com/spf13/viper"
+	"github.com/sirupsen/logrus"
 	"os"
-
-	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
+	"time"
+	"github.com/gosuri/uilive"
+	"github.com/mattn/go-isatty"
 )
-
-var cfg *viper.Viper
-var dbConn *sql.DB
 
 var objChan chan object
 var failObjChan chan object
 
-var sucObjCnt int
-var failObjCnt int
-var totalObjCnf int
+var sucObjCnt uint64
+var failObjCnt uint64
+var skipObjCnt uint64
+var totalObjCnt uint64
+
+var syncGr SyncGroup
+
+var cli ArgsParsed
+var log = logrus.New()
+
+const (
+	permDir       os.FileMode = 0750
+	permFile      os.FileMode = 0640
+	sleepDuration             = 5 * time.Second
+	s3keysPerReq              = 10000
+)
 
 func main() {
 	var err error
-	cfgPath := "/etc/s3dumper.conf"
-	if cfg, err = GetConfig(cfgPath); err != nil {
-		fmt.Printf("Cannot parse config %s error: %s", cfgPath, err)
-		os.Exit(1)
-	}
-	if dbConn, err = sql.Open("mysql", cfg.GetString("mysql.dsn")); err != nil {
-		fmt.Printf("Cannot connect to mysql: %s", err)
-		os.Exit(1)
-	}
-
-	dbConn.SetMaxIdleConns(cfg.GetInt("sync.workers"))
-
-	objChan = make(chan object, cfg.GetInt("sync.workers")*2)
-	failObjChan = make(chan object, cfg.GetInt("sync.workers")*2)
-
-	sync := syncGroup{Source: awsConn{}, Target: awsConn{}}
-	if err2 := sync.Source.Configure("source"); err2 != nil {
-		fmt.Printf("Connection configure failed: %s\n", err2)
-		os.Exit(1)
-	}
-
-	if err2 := sync.Target.Configure("target"); err2 != nil {
-		fmt.Printf("Connection configure failed: %s\n", err2)
-		os.Exit(1)
-	}
-
-	sync.TableName = "sync_from_" + sync.Source.awsBucket + "_to_" + sync.Target.awsBucket
-
-	if err = dbInit(sync.TableName); err != nil {
-		fmt.Printf("Cannot init db: %s", err)
-		os.Exit(1)
-	}
-
-	for i := cfg.GetInt("sync.workers"); i != 0; i-- {
-		go syncObj(objChan, failObjChan)
-		go processFailedObj(objChan, failObjChan)
-	}
-
-	err = sync.SyncObjToChan(objChan)
+	cli, err = GetCliArgs()
 	if err != nil {
-		fmt.Printf("Listing objects failed: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("cli args parsing failed with error: %s", err)
+	}
+
+	ConfigureLogging()
+
+	objChan = make(chan object, cli.Workers*2)
+	failObjChan = make(chan object, cli.Workers*2)
+
+	for i := cli.Workers; i != 0; i-- {
+		go ProcessObj(objChan, failObjChan)
+		go ProcessFailedObj(objChan, failObjChan)
+	}
+
+	syncGr = SyncGroup{}
+	switch cli.Source.Type {
+	case S3Conn:
+		syncGr.Source = NewAWSStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path)
+	case FSConn:
+		syncGr.Source = NewFSStorage(cli.Source.Path)
+	}
+	switch cli.Target.Type {
+	case S3Conn:
+		syncGr.Target = NewAWSStorage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint, cli.Target.Bucket, cli.Target.Path)
+	case FSConn:
+		syncGr.Target = NewFSStorage(cli.Target.Path)
+	}
+
+	log.Info("Starting sync")
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		writer := uilive.New()
+		writer.Start()
+		go func() {
+			for {
+				fmt.Fprintf(writer, "Downloaded: %d; Skiped: %d; Failed: %d; Total processed: %d\n", sucObjCnt, skipObjCnt, failObjCnt, totalObjCnt)
+				time.Sleep(time.Second * 3)
+			}
+		}()
+	}
+
+	err = syncGr.Source.List(objChan)
+	if err != nil {
+		log.Fatalf("Listing objects failed: %s\n", err)
 	}
 
 Wait:
 	for {
-		if sucObjCnt+failObjCnt == totalObjCnf {
-			fmt.Println("Sync finihed sucessfully")
+		if sucObjCnt+failObjCnt+skipObjCnt == totalObjCnt {
+			log.Info("Sync finished successfully")
+			log.Infof("Downloaded: %d; Skiped: %d; Failed: %d; Total processed: %d", sucObjCnt, skipObjCnt, failObjCnt, totalObjCnt)
 			break Wait
 		}
-		time.Sleep(time.Second)
+		time.Sleep(sleepDuration)
 	}
-
 }
 
-func GetConfig(configPath string) (*viper.Viper, error) {
-	var v = viper.New()
-	v.SetConfigType("yaml")
-	file, err1 := os.Open(configPath)
-	defer file.Close()
-	if err1 != nil {
-		return nil, err1
+func ConfigureLogging() {
+
+	//stderrLogger := logging.NewLogBackend(os.Stderr, "", 0)
+	//stderrFormat := logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfunc} [%{level:.4s}] %{id:03x}%{color:reset} %{message}`)
+	//stderrFormatter := logging.NewBackendFormatter(stderrLogger, stderrFormat)
+	//stderrLeveled := logging.AddModuleLevel(stderrLogger)
+	if cli.Debug {
+		log.SetLevel(logrus.DebugLevel)
+	} else {
+		log.SetLevel(logrus.InfoLevel)
 	}
-	err2 := v.ReadConfig(file)
-	return v, err2
+	log.Formatter = &logrus.TextFormatter{}
+	log.Out = os.Stdout
 }
