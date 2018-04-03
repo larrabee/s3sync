@@ -2,32 +2,25 @@ package main
 
 import (
 	"path/filepath"
-	"time"
 	"sync/atomic"
+	"time"
+	"sync"
 )
 
 type object struct {
 	Key         string
 	ETag        string
 	Mtime       time.Time
-	ErrCount    uint
 	Content     []byte
 	ContentType string
 }
 
-func ProcessFailedObj(ch chan<- object, failCh <-chan object) {
-	for obj := range failCh {
-		if obj.ErrCount == cli.Retry {
-			log.Fatalf("Failed to sync object: %s", obj.Key)
-			//failObjCnt++
-			//continue
-		}
-		obj.ErrCount++
-		ch <- obj
-	}
+func FailedObjAction(obj object) {
+	log.Fatalf("Failed to sync object: %s", obj.Key)
 }
 
-func ProcessObj(ch chan object, failCh chan<- object) {
+func ProcessObj(ch <-chan object, wg *sync.WaitGroup) {
+Main:
 	for obj := range ch {
 		// Filter objects by extension
 		if len(cli.FilterExtension) > 0 {
@@ -50,17 +43,33 @@ func ProcessObj(ch chan object, failCh chan<- object) {
 			atomic.AddUint64(&skipObjCnt, 1)
 			continue
 		}
-
-		if err := syncGr.Source.GetObjectContent(&obj); err != nil {
-			log.Debugf("Getting obj %s failed with err: %s", obj.Key, err)
-			failCh <- obj
-			continue
+		for i := uint(0); i <= cli.Retry; i++ {
+			if err := syncGr.Source.GetObjectContent(&obj); err == nil {
+				break
+			} else {
+				log.Debugf("Getting obj %s failed with err: %s", obj.Key, err)
+				if i == cli.Retry {
+					FailedObjAction(obj)
+					continue Main
+				}
+				time.Sleep(onFailSleepDuration)
+				continue
+			}
 		}
-		if err := syncGr.Target.PutObject(&obj); err != nil {
-			log.Debugf("Putting obj %s failed with err: %s", obj.Key, err)
-			failCh <- obj
-			continue
+		for i := uint(0); i <= cli.Retry; i++ {
+			if err := syncGr.Target.PutObject(&obj); err == nil {
+				break
+			} else {
+				log.Debugf("Putting obj %s failed with err: %s", obj.Key, err)
+				if i == cli.Retry {
+					FailedObjAction(obj)
+					continue Main
+				}
+				time.Sleep(onFailSleepDuration)
+				continue
+			}
 		}
 		atomic.AddUint64(&sucObjCnt, 1)
 	}
+	wg.Done()
 }

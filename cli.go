@@ -53,6 +53,7 @@ func GetCliArgs() (cli ArgsParsed, err error) {
 	rawCli.SourceRegion = "us-east-1"
 	rawCli.TargetRegion = "us-east-1"
 	rawCli.Workers = 16
+	rawCli.Retry = 1
 
 	arg.MustParse(&rawCli)
 	cli.Args = rawCli

@@ -16,8 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
 type SyncGroup struct {
@@ -65,75 +65,56 @@ func NewFSStorage(dir string) (storage FSStorage) {
 	return storage
 }
 
-func (storage AWSStorage) List(ch chan<- object) error {
-	prefixChan := make(chan object, cli.Workers*2)
-	listErrChan := make(chan error, 2)
-	done := make(chan bool, 1)
+func (storage AWSStorage) List(output chan<- object) error {
+	prefixChan := make(chan string, cli.Workers*2)
+	listResultChan := make(chan error)
 	wg := sync.WaitGroup{}
 
-	goListObjects := func() {
-		listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
-			for _, o := range p.Contents {
-				atomic.AddUint64(&totalObjCnt, 1)
-				ch <- object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
-			}
-			return true // continue paging
+	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
+		for _, o := range p.CommonPrefixes {
+			wg.Add(1)
+			prefixChan <- aws.StringValue(o.Prefix)
 		}
+		for _, o := range p.Contents {
+			atomic.AddUint64(&totalObjCnt, 1)
+			output <- object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
+		}
+		return true // continue paging
+	}
 
+	listObjectsRecursive := func(prefixChan chan string, output chan<- object) {
 		for prefix := range prefixChan {
 			err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
-				Bucket:  aws.String(storage.awsBucket),
-				Prefix:  aws.String(prefix.Key),
-				MaxKeys: aws.Int64(s3keysPerReq),
+				Bucket:    aws.String(storage.awsBucket),
+				Prefix:    aws.String(prefix),
+				MaxKeys:   aws.Int64(s3keysPerReq),
+				Delimiter: aws.String("/"),
 			}, listObjectsFn)
-			if err != nil {
-				listErrChan <- err
+			wg.Done()
+			if err != nil{
+				listResultChan <- err
 			}
 		}
-		wg.Done()
 	}
 
-	goListPrefix := func() {
-		listObjectsPrefixFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
-			for _, o := range p.CommonPrefixes {
-				prefixChan <- object{Key: aws.StringValue(o.Prefix)}
-			}
-			for _, o := range p.Contents {
-				atomic.AddUint64(&totalObjCnt, 1)
-				ch <- object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
-			}
-			return true // continue paging
-		}
-
-		err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
-			Bucket:    aws.String(storage.awsBucket),
-			Prefix:    aws.String(storage.prefix),
-			MaxKeys:   aws.Int64(s3keysPerReq),
-			Delimiter: aws.String("/"),
-		}, listObjectsPrefixFn)
-
-		if err != nil {
-			listErrChan <- err
-		}
-		close(prefixChan)
-	}
-
-	go goListPrefix()
 	for i := cli.Workers; i != 0; i-- {
-		wg.Add(1)
-		go goListObjects()
+		go listObjectsRecursive(prefixChan, output)
 	}
 
 	go func() {
 		wg.Wait()
-		close(done)
+		close(prefixChan)
+		listResultChan <- nil
 	}()
 
+	// Start listing from storage.prefix
+	wg.Add(1)
+	prefixChan <- storage.prefix
+
 	select {
-	case err := <-listErrChan:
-		return err
-	case <-done:
-		return nil
+	case msg := <-listResultChan:
+		close(output)
+		return msg
 	}
 }
 

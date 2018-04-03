@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/gosuri/uilive"
+	"github.com/mattn/go-isatty"
 	"github.com/sirupsen/logrus"
 	"os"
 	"time"
-	"github.com/gosuri/uilive"
-	"github.com/mattn/go-isatty"
+	"sync"
 )
-
-var objChan chan object
-var failObjChan chan object
 
 var sucObjCnt uint64
 var failObjCnt uint64
@@ -27,6 +25,7 @@ const (
 	permFile      os.FileMode = 0640
 	sleepDuration             = 5 * time.Second
 	s3keysPerReq              = 10000
+	onFailSleepDuration       = time.Second
 )
 
 func main() {
@@ -38,12 +37,12 @@ func main() {
 
 	ConfigureLogging()
 
-	objChan = make(chan object, cli.Workers*2)
-	failObjChan = make(chan object, cli.Workers*2)
+	objChan := make(chan object, cli.Workers*4)
+	wg := sync.WaitGroup{}
 
 	for i := cli.Workers; i != 0; i-- {
-		go ProcessObj(objChan, failObjChan)
-		go ProcessFailedObj(objChan, failObjChan)
+		wg.Add(1)
+		go ProcessObj(objChan, &wg)
 	}
 
 	syncGr = SyncGroup{}
@@ -77,15 +76,9 @@ func main() {
 		log.Fatalf("Listing objects failed: %s\n", err)
 	}
 
-Wait:
-	for {
-		if sucObjCnt+failObjCnt+skipObjCnt == totalObjCnt {
-			log.Info("Sync finished successfully")
-			log.Infof("Downloaded: %d; Skiped: %d; Failed: %d; Total processed: %d", sucObjCnt, skipObjCnt, failObjCnt, totalObjCnt)
-			break Wait
-		}
-		time.Sleep(sleepDuration)
-	}
+	wg.Wait()
+	log.Info("Sync finished successfully")
+	log.Infof("Downloaded: %d; Skiped: %d; Failed: %d; Total processed: %d", sucObjCnt, skipObjCnt, failObjCnt, totalObjCnt)
 }
 
 func ConfigureLogging() {
