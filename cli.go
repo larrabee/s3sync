@@ -43,7 +43,6 @@ type Args struct {
 	TargetEndpoint string `arg:"--target-endpoint,--te" help:"Target AWS Endpoint"`
 	// Sync config
 	Workers            uint     `arg:"-w" help:"Workers count"`
-	MaxPrefixKeys     uint      `arg:"-p" help:"Set it around you dir count."`
 	Retry              uint     `arg:"-r" help:"Max numbers of retry to syncGr file"`
 	RetrySleepInterval uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
 	FilterExtension    []string `arg:"--filter-extension,--fe" help:"Sync only files with given extensions"`
@@ -57,7 +56,6 @@ func GetCliArgs() (cli ArgsParsed, err error) {
 	rawCli.SourceRegion = "us-east-1"
 	rawCli.TargetRegion = "us-east-1"
 	rawCli.Workers = 16
-	rawCli.MaxPrefixKeys = 17072740
 	rawCli.Retry = 1
 	rawCli.RetrySleepInterval = 1
 
