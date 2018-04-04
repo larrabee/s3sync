@@ -76,17 +76,16 @@ func NewFSStorage(dir string) (storage FSStorage) {
 }
 
 func (storage AWSStorage) List(output chan<- Object) error {
-
-	prefixChan := make(chan string, s3keysPerReq*4)
+	prefixChan := channels.NewInfiniteChannel()
 	listResultChan := make(chan error, cli.Workers)
 	wg := sync.WaitGroup{}
 	stopListing := false
 
-	listObjectsRecursive := func(prefixChan chan string, output chan<- Object) {
+	listObjectsRecursive := func(prefixChan *channels.InfiniteChannel, output chan<- Object) {
 		listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 			for _, o := range p.CommonPrefixes {
 				wg.Add(1)
-				prefixChan <- aws.StringValue(o.Prefix)
+				prefixChan.In() <- aws.StringValue(o.Prefix)
 			}
 			for _, o := range p.Contents {
 				atomic.AddUint64(&counter.totalObjCnt, 1)
@@ -95,20 +94,18 @@ func (storage AWSStorage) List(output chan<- Object) error {
 			return true // continue paging
 		}
 
-		for prefix := range prefixChan {
+		for prefix := range prefixChan.Out() {
 			for i := uint(0); i <= cli.Retry; i++ {
 				if stopListing {
 					wg.Done()
 					return
 				}
-
 				err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
 					Bucket:    aws.String(storage.awsBucket),
-					Prefix:    aws.String(prefix),
+					Prefix:    aws.String(prefix.(string)),
 					MaxKeys:   aws.Int64(s3keysPerReq),
 					Delimiter: aws.String("/"),
 				}, listObjectsFn)
-
 
 				if (err != nil) && (i == cli.Retry) {
 					wg.Done()
@@ -132,11 +129,11 @@ func (storage AWSStorage) List(output chan<- Object) error {
 
 	// Start listing from storage.prefix
 	wg.Add(1)
-	prefixChan <- storage.prefix
+	prefixChan.In() <- storage.prefix
 
 	go func() {
 		wg.Wait()
-		close(prefixChan)
+		prefixChan.Close()
 		listResultChan <- nil
 	}()
 
@@ -198,20 +195,20 @@ func (storage AWSStorage) GetObjectMeta(obj *Object) error {
 }
 
 func (storage FSStorage) List(output chan<- Object) error {
-	prefixChan := make(chan string, cli.MaxPrefixKeys)
+	prefixChan := channels.NewInfiniteChannel()
 	listResultChan := make(chan error, cli.Workers)
 	wg := sync.WaitGroup{}
 	stopListing := false
 
-	listObjectsRecursive := func(prefixChan chan string, output chan<- Object) {
+	listObjectsRecursive := func(prefixChan *channels.InfiniteChannel, output chan<- Object) {
 		buffer := make([]byte, 1024*64)
 
-		for prefix := range prefixChan {
+		for prefix := range prefixChan.Out() {
 			if stopListing {
 				wg.Done()
 				return
 			}
-			dirents, err := godirwalk.ReadDirents(prefix, buffer)
+			dirents, err := godirwalk.ReadDirents(prefix.(string), buffer)
 
 			if err != nil {
 				wg.Done()
@@ -220,10 +217,10 @@ func (storage FSStorage) List(output chan<- Object) error {
 			}
 
 			for _, dirent := range dirents {
-				path := filepath.Join(prefix, dirent.Name())
+				path := filepath.Join(prefix.(string), dirent.Name())
 				if dirent.IsDir() {
 					wg.Add(1)
-					prefixChan <- path
+					prefixChan.In() <- path
 					continue
 				} else {
 					atomic.AddUint64(&counter.totalObjCnt, 1)
@@ -240,11 +237,11 @@ func (storage FSStorage) List(output chan<- Object) error {
 
 	// Start listing from storage.prefix
 	wg.Add(1)
-	prefixChan <- storage.dir
+	prefixChan.In() <- storage.dir
 
 	go func() {
 		wg.Wait()
-		close(prefixChan)
+		prefixChan.Close()
 		listResultChan <- nil
 	}()
 
