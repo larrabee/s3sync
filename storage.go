@@ -18,7 +18,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"github.com/karrick/godirwalk"
+	"github.com/eapache/channels"
 )
+
+type Object struct {
+	Key         string
+	ETag        string
+	Mtime       time.Time
+	Content     []byte
+	ContentType string
+}
 
 type SyncGroup struct {
 	Source Storage
@@ -26,10 +36,10 @@ type SyncGroup struct {
 }
 
 type Storage interface {
-	List(ch chan<- object) error
-	PutObject(object *object) error
-	GetObjectContent(obj *object) error
-	GetObjectMeta(obj *object) error
+	List(ch chan<- Object) error
+	PutObject(object *Object) error
+	GetObjectContent(obj *Object) error
+	GetObjectMeta(obj *Object) error
 }
 
 type AWSStorage struct {
@@ -65,34 +75,53 @@ func NewFSStorage(dir string) (storage FSStorage) {
 	return storage
 }
 
-func (storage AWSStorage) List(output chan<- object) error {
-	prefixChan := make(chan string, cli.Workers*2)
-	listResultChan := make(chan error)
+func (storage AWSStorage) List(output chan<- Object) error {
+
+	prefixChan := make(chan string, s3keysPerReq*4)
+	listResultChan := make(chan error, cli.Workers)
 	wg := sync.WaitGroup{}
+	stopListing := false
 
-	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
-		for _, o := range p.CommonPrefixes {
-			wg.Add(1)
-			prefixChan <- aws.StringValue(o.Prefix)
+	listObjectsRecursive := func(prefixChan chan string, output chan<- Object) {
+		listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
+			for _, o := range p.CommonPrefixes {
+				wg.Add(1)
+				prefixChan <- aws.StringValue(o.Prefix)
+			}
+			for _, o := range p.Contents {
+				atomic.AddUint64(&counter.totalObjCnt, 1)
+				output <- Object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
+			}
+			return true // continue paging
 		}
-		for _, o := range p.Contents {
-			atomic.AddUint64(&totalObjCnt, 1)
-			output <- object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
-		}
-		return true // continue paging
-	}
 
-	listObjectsRecursive := func(prefixChan chan string, output chan<- object) {
 		for prefix := range prefixChan {
-			err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
-				Bucket:    aws.String(storage.awsBucket),
-				Prefix:    aws.String(prefix),
-				MaxKeys:   aws.Int64(s3keysPerReq),
-				Delimiter: aws.String("/"),
-			}, listObjectsFn)
-			wg.Done()
-			if err != nil{
-				listResultChan <- err
+			for i := uint(0); i <= cli.Retry; i++ {
+				if stopListing {
+					wg.Done()
+					return
+				}
+
+				err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
+					Bucket:    aws.String(storage.awsBucket),
+					Prefix:    aws.String(prefix),
+					MaxKeys:   aws.Int64(s3keysPerReq),
+					Delimiter: aws.String("/"),
+				}, listObjectsFn)
+
+
+				if (err != nil) && (i == cli.Retry) {
+					wg.Done()
+					listResultChan <- err
+					break
+				} else if err == nil {
+					wg.Done()
+					break
+				} else {
+					log.Debugf("S3 listing failed with error: %s", err)
+					time.Sleep(cli.RetrySleepInterval)
+					continue
+				}
 			}
 		}
 	}
@@ -101,24 +130,26 @@ func (storage AWSStorage) List(output chan<- object) error {
 		go listObjectsRecursive(prefixChan, output)
 	}
 
+	// Start listing from storage.prefix
+	wg.Add(1)
+	prefixChan <- storage.prefix
+
 	go func() {
 		wg.Wait()
 		close(prefixChan)
 		listResultChan <- nil
 	}()
 
-	// Start listing from storage.prefix
-	wg.Add(1)
-	prefixChan <- storage.prefix
-
 	select {
 	case msg := <-listResultChan:
+		stopListing = true
+		wg.Wait()
 		close(output)
 		return msg
 	}
 }
 
-func (storage AWSStorage) PutObject(obj *object) error {
+func (storage AWSStorage) PutObject(obj *Object) error {
 	_, err := storage.awsSvc.PutObject(&s3.PutObjectInput{
 		Bucket:      aws.String(storage.awsBucket),
 		Key:         aws.String(obj.Key),
@@ -131,7 +162,7 @@ func (storage AWSStorage) PutObject(obj *object) error {
 	return nil
 }
 
-func (storage AWSStorage) GetObjectContent(obj *object) error {
+func (storage AWSStorage) GetObjectContent(obj *Object) error {
 	result, err := storage.awsSvc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(storage.awsBucket),
 		Key:    aws.String(obj.Key),
@@ -151,7 +182,7 @@ func (storage AWSStorage) GetObjectContent(obj *object) error {
 	return nil
 }
 
-func (storage AWSStorage) GetObjectMeta(obj *object) error {
+func (storage AWSStorage) GetObjectMeta(obj *Object) error {
 	result, err := storage.awsSvc.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(storage.awsBucket),
 		Key:    aws.String(obj.Key),
@@ -166,26 +197,67 @@ func (storage AWSStorage) GetObjectMeta(obj *object) error {
 	return nil
 }
 
-func (storage FSStorage) List(ch chan<- object) error {
-	err := filepath.Walk(storage.dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
+func (storage FSStorage) List(output chan<- Object) error {
+	prefixChan := make(chan string, cli.MaxPrefixKeys)
+	listResultChan := make(chan error, cli.Workers)
+	wg := sync.WaitGroup{}
+	stopListing := false
 
-		atomic.AddUint64(&totalObjCnt, 1)
-		ch <- object{Key: strings.TrimPrefix(path, storage.dir), ETag: EtagFromMetadata(info.ModTime(), info.Size()), Mtime: info.ModTime()}
-		return nil
-	})
-	if err != nil {
-		return err
+	listObjectsRecursive := func(prefixChan chan string, output chan<- Object) {
+		buffer := make([]byte, 1024*64)
+
+		for prefix := range prefixChan {
+			if stopListing {
+				wg.Done()
+				return
+			}
+			dirents, err := godirwalk.ReadDirents(prefix, buffer)
+
+			if err != nil {
+				wg.Done()
+				listResultChan <- err
+				return
+			}
+
+			for _, dirent := range dirents {
+				path := filepath.Join(prefix, dirent.Name())
+				if dirent.IsDir() {
+					wg.Add(1)
+					prefixChan <- path
+					continue
+				} else {
+					atomic.AddUint64(&counter.totalObjCnt, 1)
+					output <- Object{Key: strings.TrimPrefix(path, storage.dir)}
+				}
+			}
+			wg.Done()
+		}
 	}
-	return nil
+
+	for i := cli.Workers; i != 0; i-- {
+		go listObjectsRecursive(prefixChan, output)
+	}
+
+	// Start listing from storage.prefix
+	wg.Add(1)
+	prefixChan <- storage.dir
+
+	go func() {
+		wg.Wait()
+		close(prefixChan)
+		listResultChan <- nil
+	}()
+
+	select {
+	case msg := <-listResultChan:
+		stopListing = true
+		wg.Wait()
+		close(output)
+		return msg
+	}
 }
 
-func (storage FSStorage) PutObject(obj *object) error {
+func (storage FSStorage) PutObject(obj *Object) error {
 	destPath := filepath.Join(storage.dir, obj.Key)
 	err := os.MkdirAll(filepath.Dir(destPath), permDir)
 	if err != nil {
@@ -198,7 +270,7 @@ func (storage FSStorage) PutObject(obj *object) error {
 	return nil
 }
 
-func (storage FSStorage) GetObjectContent(obj *object) (err error) {
+func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
 	obj.Content, err = ioutil.ReadFile(destPath)
 	if err != nil {
@@ -230,7 +302,7 @@ func (storage FSStorage) GetObjectContent(obj *object) (err error) {
 	return nil
 }
 
-func (storage FSStorage) GetObjectMeta(obj *object) (err error) {
+func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
 	fh, err := os.Open(destPath)
 	if err != nil {

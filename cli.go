@@ -4,6 +4,7 @@ import (
 	"github.com/alexflint/go-arg"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type ConnType int
@@ -15,8 +16,9 @@ const (
 
 type ArgsParsed struct {
 	Args
-	Source Connect
-	Target Connect
+	Source             Connect
+	Target             Connect
+	RetrySleepInterval time.Duration
 }
 
 type Connect struct {
@@ -40,11 +42,13 @@ type Args struct {
 	TargetRegion   string `arg:"--target-region,--tr" help:"Target AWS Region"`
 	TargetEndpoint string `arg:"--target-endpoint,--te" help:"Target AWS Endpoint"`
 	// Sync config
-	Workers         uint     `arg:"-w" help:"Workers count"`
-	Retry           uint     `arg:"-r" help:"Max numbers of retry to syncGr file"`
-	FilterExtension []string `arg:"--filter-extension,--fe" help:"Sync only files with given extensions"`
-	FilterTimestamp int64    `arg:"--filter-timestamp,--ft" help:"Sync only files modified after given unix timestamp"`
-	Debug           bool     `arg:"-d" help:"Show debug logging"`
+	Workers            uint     `arg:"-w" help:"Workers count"`
+	MaxPrefixKeys     uint      `arg:"-p" help:"Set it around you dir count."`
+	Retry              uint     `arg:"-r" help:"Max numbers of retry to syncGr file"`
+	RetrySleepInterval uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
+	FilterExtension    []string `arg:"--filter-extension,--fe" help:"Sync only files with given extensions"`
+	FilterTimestamp    int64    `arg:"--filter-timestamp,--ft" help:"Sync only files modified after given unix timestamp"`
+	Debug              bool     `arg:"-d" help:"Show debug logging"`
 }
 
 // GetCliArgs return cli args structure
@@ -53,11 +57,14 @@ func GetCliArgs() (cli ArgsParsed, err error) {
 	rawCli.SourceRegion = "us-east-1"
 	rawCli.TargetRegion = "us-east-1"
 	rawCli.Workers = 16
+	rawCli.MaxPrefixKeys = 17072740
 	rawCli.Retry = 1
+	rawCli.RetrySleepInterval = 1
 
 	arg.MustParse(&rawCli)
 	cli.Args = rawCli
 
+	cli.RetrySleepInterval = time.Duration(cli.Args.RetrySleepInterval) * time.Second
 	if cli.Source, err = ParseConn(cli.Args.Source); err != nil {
 		return cli, err
 	}
@@ -80,7 +87,7 @@ func ParseConn(cStr string) (conn Connect, err error) {
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	default:
 		conn.Type = FSConn
-		conn.Path = u.Path
+		conn.Path = cStr
 	}
 	return
 }
