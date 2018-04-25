@@ -17,7 +17,12 @@ type Counter struct {
 
 func FailedObjAction(obj Object) {
 	atomic.AddUint64(&counter.failObjCnt, 1)
-	log.Fatalf("Failed to sync object: %s", obj.Key)
+	switch cli.OnFail {
+	case OnFailLog:
+		log.Errorf("Failed to sync object: %s, skipping it\n", obj.Key)
+	case OnFailFatal:
+		log.Fatalf("Failed to sync object: %s, exiting\n", obj.Key)
+	}
 }
 
 func FilterObject(obj *Object) bool {

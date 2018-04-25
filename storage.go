@@ -9,17 +9,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/eapache/channels"
+	"github.com/karrick/godirwalk"
 	"io"
 	"io/ioutil"
-	"net/http"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"github.com/karrick/godirwalk"
-	"github.com/eapache/channels"
 )
 
 type Object struct {
@@ -149,9 +149,10 @@ func (storage AWSStorage) List(output chan<- Object) error {
 func (storage AWSStorage) PutObject(obj *Object) error {
 	_, err := storage.awsSvc.PutObject(&s3.PutObjectInput{
 		Bucket:      aws.String(storage.awsBucket),
-		Key:         aws.String(obj.Key),
+		Key:         aws.String(storage.prefix + "/" + obj.Key),
 		Body:        bytes.NewReader(obj.Content),
 		ContentType: aws.String(obj.ContentType),
+		ACL:         aws.String(cli.Acl),
 	})
 	if err != nil {
 		return err
@@ -280,16 +281,12 @@ func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 	}
 	defer fh.Close()
 
-	n, err := fh.Read(obj.Content)
+	_, err = fh.Read(obj.Content)
 	if err != nil && err != io.EOF {
 		return err
 	}
 
-	if n > 512 {
-		n = 512
-	}
-
-	obj.ContentType = http.DetectContentType(obj.Content[:n])
+	obj.ContentType = mime.TypeByExtension(filepath.Ext(destPath))
 	fileInfo, err := os.Stat(destPath)
 	if err != nil {
 		return err
@@ -301,19 +298,8 @@ func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 
 func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
-	fh, err := os.Open(destPath)
-	if err != nil {
-		return err
-	}
-	defer fh.Close()
 
-	buffer := make([]byte, 512)
-	n, err := fh.Read(buffer)
-	if err != nil && err != io.EOF {
-		return err
-	}
-
-	obj.ContentType = http.DetectContentType(obj.Content[:n])
+	obj.ContentType = mime.TypeByExtension(filepath.Ext(destPath))
 	fileInfo, err := os.Stat(destPath)
 	if err != nil {
 		return err
