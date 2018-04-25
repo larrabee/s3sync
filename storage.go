@@ -149,7 +149,7 @@ func (storage AWSStorage) List(output chan<- Object) error {
 func (storage AWSStorage) PutObject(obj *Object) error {
 	_, err := storage.awsSvc.PutObject(&s3.PutObjectInput{
 		Bucket:      aws.String(storage.awsBucket),
-		Key:         aws.String(storage.prefix + "/" + obj.Key),
+		Key:         aws.String(filepath.Join(storage.prefix, obj.Key)),
 		Body:        bytes.NewReader(obj.Content),
 		ContentType: aws.String(obj.ContentType),
 		ACL:         aws.String(cli.Acl),
