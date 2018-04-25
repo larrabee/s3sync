@@ -8,10 +8,14 @@ import (
 )
 
 type ConnType int
+type OnFailAction int
 
 const (
 	S3Conn ConnType = 1
 	FSConn ConnType = 2
+
+	OnFailFatal OnFailAction = 1
+	OnFailLog OnFailAction = 2
 )
 
 type ArgsParsed struct {
@@ -19,6 +23,7 @@ type ArgsParsed struct {
 	Source             Connect
 	Target             Connect
 	RetrySleepInterval time.Duration
+	OnFail OnFailAction
 }
 
 type Connect struct {
@@ -31,23 +36,25 @@ type Connect struct {
 type Args struct {
 	// Source config
 	Source         string `arg:"positional"`
-	SourceKey      string `arg:"--source-key,--sk" help:"Source AWS key"`
-	SourceSecret   string `arg:"--source-secret,--ss" help:"Source AWS secret"`
-	SourceRegion   string `arg:"--source-region,--sr" help:"Source AWS Region"`
-	SourceEndpoint string `arg:"--source-endpoint,--se" help:"Source AWS Endpoint"`
+	SourceKey      string `arg:"--sk" help:"Source AWS key"`
+	SourceSecret   string `arg:"--ss" help:"Source AWS secret"`
+	SourceRegion   string `arg:"--sr" help:"Source AWS Region"`
+	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint"`
 	// Target config
 	Target         string `arg:"positional"`
-	TargetKey      string `arg:"--target-key,--tk" help:"Target AWS key"`
-	TargetSecret   string `arg:"--target-secret,--ts" help:"Target AWS secret"`
-	TargetRegion   string `arg:"--target-region,--tr" help:"Target AWS Region"`
-	TargetEndpoint string `arg:"--target-endpoint,--te" help:"Target AWS Endpoint"`
+	TargetKey      string `arg:"--tk" help:"Target AWS key"`
+	TargetSecret   string `arg:"--ts" help:"Target AWS secret"`
+	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
+	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
 	// Sync config
 	Workers            uint     `arg:"-w" help:"Workers count"`
-	Retry              uint     `arg:"-r" help:"Max numbers of retry to syncGr file"`
+	Retry              uint     `arg:"-r" help:"Max numbers of retries to sync file"`
 	RetrySleepInterval uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
-	FilterExtension    []string `arg:"--filter-extension,--fe" help:"Sync only files with given extensions"`
-	FilterTimestamp    int64    `arg:"--filter-timestamp,--ft" help:"Sync only files modified after given unix timestamp"`
+	FilterExtension    []string `arg:"--fe" help:"Sync only files with given extensions"`
+	FilterTimestamp    int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
+	Acl                string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	Debug              bool     `arg:"-d" help:"Show debug logging"`
+	OnFail             string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
 }
 
 // GetCliArgs return cli args structure
@@ -58,9 +65,40 @@ func GetCliArgs() (cli ArgsParsed, err error) {
 	rawCli.Workers = 16
 	rawCli.Retry = 1
 	rawCli.RetrySleepInterval = 1
+	rawCli.Acl = "private"
+	rawCli.OnFail = "fatal"
 
-	arg.MustParse(&rawCli)
+	p := arg.MustParse(&rawCli)
 	cli.Args = rawCli
+
+	switch cli.Args.Acl {
+	case "private":
+		break
+	case "public-read":
+		break
+	case "public-read-write":
+		break
+	case "aws-exec-read":
+		break
+	case "authenticated-read":
+		break
+	case "bucket-owner-read":
+		break
+	case "bucket-owner-full-control":
+		break
+	default:
+		p.Fail("--acl must be one of \"private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
+	}
+
+	switch cli.Args.OnFail {
+	case "fatal":
+		cli.OnFail = OnFailFatal
+	case "log":
+		cli.OnFail = OnFailLog
+	default:
+		p.Fail("--on-fail must be one of \"fatal, log\"")
+
+	}
 
 	cli.RetrySleepInterval = time.Duration(cli.Args.RetrySleepInterval) * time.Second
 	if cli.Source, err = ParseConn(cli.Args.Source); err != nil {

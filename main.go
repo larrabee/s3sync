@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var syncGr SyncGroup
+var syncGr = SyncGroup{}
 
 var counter = Counter{}
 var cli ArgsParsed
@@ -41,7 +41,6 @@ func main() {
 		go ProcessObj(objChan, &wg)
 	}
 
-	syncGr = SyncGroup{}
 	switch cli.Source.Type {
 	case S3Conn:
 		syncGr.Source = NewAWSStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path)
@@ -55,7 +54,7 @@ func main() {
 		syncGr.Target = NewFSStorage(cli.Target.Path)
 	}
 
-	log.Info("Starting sync")
+	log.Info("Starting sync\n")
 	counter.startTime = time.Now()
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		writer := uilive.New()
@@ -78,7 +77,7 @@ func main() {
 	dur := time.Since(counter.startTime).Seconds()
 	log.Info("Sync finished successfully")
 	log.Infof("Synced: %d; Skipped: %d; Failed: %d; Total processed: %d", counter.sucObjCnt, counter.skipObjCnt, counter.failObjCnt, counter.totalObjCnt)
-	log.Infof("Avg syncing speed: %9.f obj/sec; Avg listing speed: %9.f obj/sec\n", float64(counter.sucObjCnt)/dur, float64(counter.totalObjCnt)/dur)
+	log.Infof("Avg syncing speed: %9.f obj/sec; Avg listing speed: %9.f obj/sec; Duration: %d sec\n", float64(counter.sucObjCnt)/dur, float64(counter.totalObjCnt)/dur, dur)
 }
 
 func ConfigureLogging() {
