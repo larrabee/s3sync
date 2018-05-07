@@ -14,7 +14,7 @@ import (
 var syncGr = SyncGroup{}
 
 var counter = Counter{}
-var cli ArgsParsed
+var cli argsParsed
 var log = logrus.New()
 
 const (
@@ -31,7 +31,7 @@ func main() {
 		log.Fatalf("cli args parsing failed with error: %s", err)
 	}
 
-	ConfigureLogging()
+	configureLogging()
 	runtime.GOMAXPROCS(runtime.NumCPU() * goThreadsPerCPU)
 	objChan := make(chan Object, cli.Workers*4)
 	wg := sync.WaitGroup{}
@@ -39,27 +39,31 @@ func main() {
 
 	for i := cli.Workers; i != 0; i-- {
 		wg.Add(1)
-		go ProcessObj(objChan, &wg)
+		go processObj(objChan, &wg)
 	}
 
 	switch cli.Source.Type {
-	case S3Conn:
-		syncGr.Source = NewAWSStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path)
-	case FSConn:
-		syncGr.Source = NewFSStorage(cli.Source.Path)
+	case s3Conn:
+		syncGr.Source = NewAWSStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint,
+			cli.Source.Bucket, cli.Source.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
+		)
+	case fsConn:
+		syncGr.Source = NewFSStorage(cli.Source.Path, permFile, permDir, cli.Workers)
 	}
 	switch cli.Target.Type {
-	case S3Conn:
-		syncGr.Target = NewAWSStorage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint, cli.Target.Bucket, cli.Target.Path)
-	case FSConn:
-		syncGr.Target = NewFSStorage(cli.Target.Path)
+	case s3Conn:
+		syncGr.Target = NewAWSStorage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint,
+			cli.Target.Bucket, cli.Target.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
+		)
+	case fsConn:
+		syncGr.Target = NewFSStorage(cli.Target.Path, permFile, permDir, cli.Workers)
 	}
 
 	log.Info("Starting sync\n")
 	counter.startTime = time.Now()
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		go StartProgressBar(prgBarQuit)
+		go startProgressBar(prgBarQuit)
 	}
 
 	if err := syncGr.Source.List(objChan); err != nil {
@@ -76,7 +80,7 @@ func main() {
 	log.Infof("Avg syncing speed: %9.f obj/sec; Avg listing speed: %9.f obj/sec; Duration: %9.f sec\n", float64(counter.sucObjCnt)/dur, float64(counter.totalObjCnt)/dur, dur)
 }
 
-func ConfigureLogging() {
+func configureLogging() {
 	if cli.Debug {
 		log.SetLevel(logrus.DebugLevel)
 	} else {
@@ -86,12 +90,12 @@ func ConfigureLogging() {
 	log.Out = os.Stdout
 }
 
-func StartProgressBar(quit <-chan bool) {
+func startProgressBar(quit <-chan bool) {
 	writer := uilive.New()
 	writer.Start()
 	for {
 		select {
-		case <- quit:
+		case <-quit:
 			return
 		default:
 			dur := time.Since(counter.startTime).Seconds()
