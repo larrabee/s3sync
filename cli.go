@@ -5,6 +5,13 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"fmt"
+)
+
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 type ConnType int
@@ -55,6 +62,14 @@ type Args struct {
 	Acl                string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	Debug              bool     `arg:"-d" help:"Show debug logging"`
 	OnFail             string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
+}
+
+func (Args) Version() string {
+	return fmt.Sprintf("Version: %v, commit: %v, built at: %v", version, commit, date)
+}
+
+func (Args) Description() string {
+	return "Really fast sync tool for S3"
 }
 
 // GetCliArgs return cli args structure
