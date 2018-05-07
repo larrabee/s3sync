@@ -19,3 +19,4 @@ s3sync
 
 # Vendor dir
 vendor/
+dist/
