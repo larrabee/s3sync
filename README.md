@@ -1,5 +1,6 @@
 # S3Sync
 #### Really fast sync tool for S3
+[![Go Report Card](https://goreportcard.com/badge/github.com/larrabee/s3sync)](https://goreportcard.com/report/github.com/larrabee/s3sync)  
 
 ## Features
 * Multithreaded listing of buckets or local fs
