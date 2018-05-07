@@ -22,6 +22,7 @@ import (
 	"time"
 )
 
+//Object contain content and metadata of S3 object
 type Object struct {
 	Key         string
 	ETag        string
@@ -30,11 +31,13 @@ type Object struct {
 	ContentType string
 }
 
+//SyncGroup contain Source and Target configuration. Thread safe
 type SyncGroup struct {
 	Source Storage
 	Target Storage
 }
 
+//Storage interface
 type Storage interface {
 	List(ch chan<- Object) error
 	PutObject(object *Object) error
@@ -42,18 +45,29 @@ type Storage interface {
 	GetObjectMeta(obj *Object) error
 }
 
+//AWSStorage configuration
 type AWSStorage struct {
-	awsSvc     *s3.S3
-	awsSession *session.Session
-	awsBucket  string
-	prefix     string
+	awsSvc        *s3.S3
+	awsSession    *session.Session
+	awsBucket     string
+	prefix        string
+	acl           string
+	keysPerReq    int64
+	workers       uint
+	retry         uint
+	retryInterval time.Duration
 }
 
+//FSStorage configuration
 type FSStorage struct {
-	dir string
+	dir      string
+	filePerm os.FileMode
+	dirPerm  os.FileMode
+	workers  uint
 }
 
-func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix string) (storage AWSStorage) {
+//NewAWSStorage return new configured S3 storage
+func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix, acl string, keysPerReq int64, workers, retry uint, retryInterval time.Duration) (storage AWSStorage) {
 	cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
 	awsConfig := aws.NewConfig()
 	awsConfig.S3ForcePathStyle = aws.Bool(true)
@@ -66,18 +80,27 @@ func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 	storage.awsSession = session.Must(session.NewSession(awsConfig))
 	storage.awsSvc = s3.New(storage.awsSession)
 	storage.prefix = prefix
+	storage.acl = acl
+	storage.keysPerReq = keysPerReq
+	storage.workers = workers
+	storage.retry = retry
+	storage.retryInterval = retryInterval
 	return storage
 }
 
-func NewFSStorage(dir string) (storage FSStorage) {
-
+//NewFSStorage return new configured FS storage
+func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, workers uint) (storage FSStorage) {
 	storage.dir = filepath.Clean(dir) + "/"
+	storage.filePerm = filePerm
+	storage.dirPerm = dirPerm
+	storage.workers = workers
 	return storage
 }
 
+//List S3 bucket and send founded objects to chan
 func (storage AWSStorage) List(output chan<- Object) error {
 	prefixChan := channels.NewInfiniteChannel()
-	listResultChan := make(chan error, cli.Workers)
+	listResultChan := make(chan error, storage.workers)
 	wg := sync.WaitGroup{}
 	stopListing := false
 
@@ -95,7 +118,7 @@ func (storage AWSStorage) List(output chan<- Object) error {
 		}
 
 		for prefix := range prefixChan.Out() {
-			for i := uint(0); i <= cli.Retry; i++ {
+			for i := uint(0); i <= storage.retry; i++ {
 				if stopListing {
 					wg.Done()
 					return
@@ -103,11 +126,11 @@ func (storage AWSStorage) List(output chan<- Object) error {
 				err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
 					Bucket:    aws.String(storage.awsBucket),
 					Prefix:    aws.String(prefix.(string)),
-					MaxKeys:   aws.Int64(s3keysPerReq),
+					MaxKeys:   aws.Int64(storage.keysPerReq),
 					Delimiter: aws.String("/"),
 				}, listObjectsFn)
 
-				if (err != nil) && (i == cli.Retry) {
+				if (err != nil) && (i == storage.retry) {
 					wg.Done()
 					listResultChan <- err
 					break
@@ -116,14 +139,14 @@ func (storage AWSStorage) List(output chan<- Object) error {
 					break
 				} else {
 					log.Debugf("S3 listing failed with error: %s", err)
-					time.Sleep(cli.RetrySleepInterval)
+					time.Sleep(storage.retryInterval)
 					continue
 				}
 			}
 		}
 	}
 
-	for i := cli.Workers; i != 0; i-- {
+	for i := storage.workers; i != 0; i-- {
 		go listObjectsRecursive(prefixChan, output)
 	}
 
@@ -146,13 +169,14 @@ func (storage AWSStorage) List(output chan<- Object) error {
 	}
 }
 
+//PutObject to bucket
 func (storage AWSStorage) PutObject(obj *Object) error {
 	_, err := storage.awsSvc.PutObject(&s3.PutObjectInput{
 		Bucket:      aws.String(storage.awsBucket),
 		Key:         aws.String(filepath.Join(storage.prefix, obj.Key)),
 		Body:        bytes.NewReader(obj.Content),
 		ContentType: aws.String(obj.ContentType),
-		ACL:         aws.String(cli.Acl),
+		ACL:         aws.String(storage.acl),
 	})
 	if err != nil {
 		return err
@@ -160,6 +184,7 @@ func (storage AWSStorage) PutObject(obj *Object) error {
 	return nil
 }
 
+//GetObjectContent download object content from S3
 func (storage AWSStorage) GetObjectContent(obj *Object) error {
 	result, err := storage.awsSvc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(storage.awsBucket),
@@ -180,6 +205,7 @@ func (storage AWSStorage) GetObjectContent(obj *Object) error {
 	return nil
 }
 
+//GetObjectMeta update object metadata from S3
 func (storage AWSStorage) GetObjectMeta(obj *Object) error {
 	result, err := storage.awsSvc.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(storage.awsBucket),
@@ -195,9 +221,10 @@ func (storage AWSStorage) GetObjectMeta(obj *Object) error {
 	return nil
 }
 
+//List FS and send founded objects to chan
 func (storage FSStorage) List(output chan<- Object) error {
 	prefixChan := channels.NewInfiniteChannel()
-	listResultChan := make(chan error, cli.Workers)
+	listResultChan := make(chan error, storage.workers)
 	wg := sync.WaitGroup{}
 	stopListing := false
 
@@ -232,7 +259,7 @@ func (storage FSStorage) List(output chan<- Object) error {
 		}
 	}
 
-	for i := cli.Workers; i != 0; i-- {
+	for i := storage.workers; i != 0; i-- {
 		go listObjectsRecursive(prefixChan, output)
 	}
 
@@ -255,19 +282,21 @@ func (storage FSStorage) List(output chan<- Object) error {
 	}
 }
 
+//PutObject save object to FS
 func (storage FSStorage) PutObject(obj *Object) error {
 	destPath := filepath.Join(storage.dir, obj.Key)
-	err := os.MkdirAll(filepath.Dir(destPath), permDir)
+	err := os.MkdirAll(filepath.Dir(destPath), storage.dirPerm)
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(destPath, obj.Content, permFile)
+	err = ioutil.WriteFile(destPath, obj.Content, storage.filePerm)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+//GetObjectContent read object content from FS
 func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
 	obj.Content, err = ioutil.ReadFile(destPath)
@@ -291,11 +320,12 @@ func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 	if err != nil {
 		return err
 	}
-	obj.ETag = EtagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
+	obj.ETag = etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
 	obj.Mtime = fileInfo.ModTime()
 	return nil
 }
 
+//GetObjectMeta update object metadata from FS
 func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
 
@@ -304,12 +334,13 @@ func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
 	if err != nil {
 		return err
 	}
-	obj.ETag = EtagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
+	obj.ETag = etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
 	obj.Mtime = fileInfo.ModTime()
 	return nil
 }
 
-func EtagFromMetadata(mtime time.Time, size int64) string {
+//etagFromMetadata generate ETAG from FS attributes. Useful for further use
+func etagFromMetadata(mtime time.Time, size int64) string {
 	timeByte := byte(mtime.Unix())
 	sizeByte := byte(size)
 	buf := new(bytes.Buffer)

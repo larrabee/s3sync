@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+//Counter collect statistic and sync progress
 type Counter struct {
 	sucObjCnt   uint64
 	failObjCnt  uint64
@@ -15,17 +16,17 @@ type Counter struct {
 	startTime   time.Time
 }
 
-func FailedObjAction(obj Object) {
+func failedObjAction(obj Object) {
 	atomic.AddUint64(&counter.failObjCnt, 1)
 	switch cli.OnFail {
-	case OnFailLog:
+	case onFailLog:
 		log.Errorf("Failed to sync object: %s, skipping it\n", obj.Key)
-	case OnFailFatal:
+	case onFailFatal:
 		log.Fatalf("Failed to sync object: %s, exiting\n", obj.Key)
 	}
 }
 
-func FilterObject(obj *Object) bool {
+func filterObject(obj *Object) bool {
 	// Filter object by extension
 	if len(cli.FilterExtension) > 0 {
 		flag := false
@@ -48,11 +49,11 @@ func FilterObject(obj *Object) bool {
 	return false
 }
 
-func ProcessObj(ch <-chan Object, wg *sync.WaitGroup) {
+func processObj(ch <-chan Object, wg *sync.WaitGroup) {
 Main:
 	for obj := range ch {
 		// Filter objects
-		if FilterObject(&obj) {
+		if filterObject(&obj) {
 			atomic.AddUint64(&counter.skipObjCnt, 1)
 			continue
 		}
@@ -64,10 +65,10 @@ Main:
 			} else {
 				log.Debugf("Getting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					FailedObjAction(obj)
+					failedObjAction(obj)
 					continue Main
 				}
-				time.Sleep(cli.RetrySleepInterval)
+				time.Sleep(cli.RetryInterval)
 				continue
 			}
 		}
@@ -79,10 +80,10 @@ Main:
 			} else {
 				log.Debugf("Putting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					FailedObjAction(obj)
+					failedObjAction(obj)
 					continue Main
 				}
-				time.Sleep(cli.RetrySleepInterval)
+				time.Sleep(cli.RetryInterval)
 				continue
 			}
 		}

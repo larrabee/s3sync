@@ -1,11 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"github.com/alexflint/go-arg"
 	"net/url"
 	"strings"
 	"time"
-	"fmt"
 )
 
 var (
@@ -14,33 +14,32 @@ var (
 	date    = "unknown"
 )
 
-type ConnType int
-type OnFailAction int
+type connType int
+type onFailAction int
 
 const (
-	S3Conn ConnType = 1
-	FSConn ConnType = 2
+	s3Conn connType = 1
+	fsConn connType = 2
 
-	OnFailFatal OnFailAction = 1
-	OnFailLog OnFailAction = 2
+	onFailFatal onFailAction = 1
+	onFailLog   onFailAction = 2
 )
 
-type ArgsParsed struct {
-	Args
-	Source             Connect
-	Target             Connect
-	RetrySleepInterval time.Duration
-	OnFail OnFailAction
+type argsParsed struct {
+	args
+	Source        connect
+	Target        connect
+	RetryInterval time.Duration
+	OnFail        onFailAction
 }
 
-type Connect struct {
-	Type   ConnType
+type connect struct {
+	Type   connType
 	Bucket string
 	Path   string
 }
 
-// Args cli args structure
-type Args struct {
+type args struct {
 	// Source config
 	Source         string `arg:"positional"`
 	SourceKey      string `arg:"--sk" help:"Source AWS key"`
@@ -54,39 +53,41 @@ type Args struct {
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
 	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
 	// Sync config
-	Workers            uint     `arg:"-w" help:"Workers count"`
-	Retry              uint     `arg:"-r" help:"Max numbers of retries to sync file"`
-	RetrySleepInterval uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
-	FilterExtension    []string `arg:"--fe,separate" help:"Sync only files with given extensions"`
-	FilterTimestamp    int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
-	Acl                string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
-	Debug              bool     `arg:"-d" help:"Show debug logging"`
-	OnFail             string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
+	Workers         uint     `arg:"-w" help:"Workers count"`
+	Retry           uint     `arg:"-r" help:"Max numbers of retries to sync file"`
+	RetryInterval   uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
+	FilterExtension []string `arg:"--fe,separate" help:"Sync only files with given extensions"`
+	FilterTimestamp int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
+	Acl             string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
+	Debug           bool     `arg:"-d" help:"Show debug logging"`
+	OnFail          string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
 }
 
-func (Args) Version() string {
+//Version return program version string on human format
+func (args) Version() string {
 	return fmt.Sprintf("Version: %v, commit: %v, built at: %v", version, commit, date)
 }
 
-func (Args) Description() string {
+//Description return program description string
+func (args) Description() string {
 	return "Really fast sync tool for S3"
 }
 
-// GetCliArgs return cli args structure
-func GetCliArgs() (cli ArgsParsed, err error) {
-	rawCli := Args{}
+//GetCliArgs return cli args structure and error
+func GetCliArgs() (cli argsParsed, err error) {
+	rawCli := args{}
 	rawCli.SourceRegion = "us-east-1"
 	rawCli.TargetRegion = "us-east-1"
 	rawCli.Workers = 16
 	rawCli.Retry = 1
-	rawCli.RetrySleepInterval = 1
+	rawCli.RetryInterval = 1
 	rawCli.Acl = "private"
 	rawCli.OnFail = "fatal"
 
 	p := arg.MustParse(&rawCli)
-	cli.Args = rawCli
+	cli.args = rawCli
 
-	switch cli.Args.Acl {
+	switch cli.args.Acl {
 	case "private":
 		break
 	case "public-read":
@@ -105,27 +106,27 @@ func GetCliArgs() (cli ArgsParsed, err error) {
 		p.Fail("--acl must be one of \"private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
 	}
 
-	switch cli.Args.OnFail {
+	switch cli.args.OnFail {
 	case "fatal":
-		cli.OnFail = OnFailFatal
+		cli.OnFail = onFailFatal
 	case "log":
-		cli.OnFail = OnFailLog
+		cli.OnFail = onFailLog
 	default:
 		p.Fail("--on-fail must be one of \"fatal, log\"")
 
 	}
 
-	cli.RetrySleepInterval = time.Duration(cli.Args.RetrySleepInterval) * time.Second
-	if cli.Source, err = ParseConn(cli.Args.Source); err != nil {
+	cli.RetryInterval = time.Duration(cli.args.RetryInterval) * time.Second
+	if cli.Source, err = parseConn(cli.args.Source); err != nil {
 		return cli, err
 	}
-	if cli.Target, err = ParseConn(cli.Args.Target); err != nil {
+	if cli.Target, err = parseConn(cli.args.Target); err != nil {
 		return cli, err
 	}
 	return
 }
 
-func ParseConn(cStr string) (conn Connect, err error) {
+func parseConn(cStr string) (conn connect, err error) {
 	u, err := url.Parse(cStr)
 	if err != nil {
 		return
@@ -133,11 +134,11 @@ func ParseConn(cStr string) (conn Connect, err error) {
 
 	switch u.Scheme {
 	case "s3":
-		conn.Type = S3Conn
+		conn.Type = s3Conn
 		conn.Bucket = u.Host
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	default:
-		conn.Type = FSConn
+		conn.Type = fsConn
 		conn.Path = cStr
 	}
 	return
