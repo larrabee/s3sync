@@ -57,7 +57,7 @@ type Args struct {
 	Workers            uint     `arg:"-w" help:"Workers count"`
 	Retry              uint     `arg:"-r" help:"Max numbers of retries to sync file"`
 	RetrySleepInterval uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
-	FilterExtension    []string `arg:"--fe" help:"Sync only files with given extensions"`
+	FilterExtension    []string `arg:"--fe,separate" help:"Sync only files with given extensions"`
 	FilterTimestamp    int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
 	Acl                string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	Debug              bool     `arg:"-d" help:"Show debug logging"`
