@@ -50,6 +50,30 @@ Options:
   --version              display version and exit
 ```
 
+Examples:  
+* Sync Amazon S3 bucket to FS:  
+`s3sync --sk KEY --ss SECRET -w 128 s3://shared /opt/backups/s3/ -d -r 10`
+* Sync S3 bucket with custom endpoint to FS:
+`s3sync --sk KEY --ss SECRET --se "http://127.0.0.1:7484" -w 128 s3://shared /opt/backups/s3/ -d -r 10`
+* Sync directory (/test) from Amazon S3 bucket to FS:
+`s3sync --sk KEY --ss SECRET -w 128 s3://shared/test /opt/backups/s3/test/ -d -r 10`
+* Sync directory from local FS to Amazon S3:
+`s3sync --tk KEY --ts SECRET -w 128 /opt/backups/s3/ s3://shared -d -r 10`
+* Sync directory from local FS to Amazon S3 bucket directory:
+`s3sync --tk KEY --ts SECRET -w 128 /opt/backups/s3/test/ s3://shared/test_new/ -d -r 10`
+* Sync one Amazon bucket to another Amazon bucket:
+`s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared s3://shared_new -d -r 10`
+* Sync S3 bucket with custom endpoint to another bucket with custom endpoint:
+`s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 --se "http://127.0.0.1:7484" --te "http://127.0.0.1:7484" -w 128 s3://shared s3://shared_new -d -r 10` 
+* Sync one Amazon bucket directory to another Amazon bucket:
+`s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared/test/ s3://shared_new -d -r 10`
+
+SOURCE and TARGET should be a directory. Syncing of single file are not supported (This will not work `s3sync --sk KEY --ss SECRET s3://shared/megafile.zip /opt/backups/s3/`)  
+
+You can use filters.   
+Timestamp filter (`--ft` key) syncing only files, that has been changed after specified date. Its useful for diff backups.  
+File extension filter (`--fe` key) syncing only files, that have specified extension. Can be specified multiple times (Like this `--fe .jpg --fe .png --fe .bmp`).  
+
 ## Install
 Download binary from [Release page](https://github.com/larrabee/s3sync/releases).  
 
