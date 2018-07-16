@@ -31,6 +31,10 @@ func main() {
 		log.Fatalf("cli args parsing failed with error: %s", err)
 	}
 
+	if cli.DisableHTTP2 {
+		os.Setenv("GODEBUG", os.Getenv("GODEBUG") + "http2client=0")
+	}
+
 	configureLogging()
 	runtime.GOMAXPROCS(runtime.NumCPU() * goThreadsPerCPU)
 	objChan := make(chan Object, cli.Workers*4)

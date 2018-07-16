@@ -20,7 +20,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"net/http"
 )
 
 //Object contain content and metadata of S3 object
@@ -72,8 +71,6 @@ func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 	cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
 	awsConfig := aws.NewConfig()
 	awsConfig.S3ForcePathStyle = aws.Bool(true)
-	transport := &http.Transport{MaxIdleConns: int(workers)}
-	awsConfig.HTTPClient = &http.Client{Transport: transport}
 	awsConfig.WithCredentials(cred)
 	awsConfig.Region = aws.String(awsRegion)
 	if endpoint != "" {
