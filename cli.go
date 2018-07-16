@@ -61,6 +61,7 @@ type args struct {
 	Acl             string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	Debug           bool     `arg:"-d" help:"Show debug logging"`
 	OnFail          string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
+	DisableHTTP2    bool     `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 }
 
 //Version return program version string on human format
