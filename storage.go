@@ -68,10 +68,15 @@ type FSStorage struct {
 
 //NewAWSStorage return new configured S3 storage
 func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix, acl string, keysPerReq int64, workers, retry uint, retryInterval time.Duration) (storage AWSStorage) {
-	cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
 	awsConfig := aws.NewConfig()
 	awsConfig.S3ForcePathStyle = aws.Bool(true)
-	awsConfig.WithCredentials(cred)
+	awsConfig.CredentialsChainVerboseErrors = aws.Bool(true)
+
+	if (awsAccessKey != "" && awsSecretKey != "") {
+		cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
+		awsConfig.WithCredentials(cred)
+	}
+
 	awsConfig.Region = aws.String(awsRegion)
 	if endpoint != "" {
 		awsConfig.Endpoint = aws.String(endpoint)
