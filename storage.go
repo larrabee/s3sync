@@ -72,8 +72,15 @@ func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 	awsConfig.S3ForcePathStyle = aws.Bool(true)
 	awsConfig.CredentialsChainVerboseErrors = aws.Bool(true)
 
-	if (awsAccessKey != "" && awsSecretKey != "") {
+	if awsAccessKey != "" && awsSecretKey != "" {
 		cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
+		awsConfig.WithCredentials(cred)
+	} else {
+		cred := credentials.NewChainCredentials(
+			[]credentials.Provider{
+				&credentials.EnvProvider{},
+				&credentials.SharedCredentialsProvider{},
+			})
 		awsConfig.WithCredentials(cred)
 	}
 
