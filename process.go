@@ -52,6 +52,9 @@ func filterObject(obj *Object) bool {
 func processObj(ch <-chan Object, wg *sync.WaitGroup) {
 Main:
 	for obj := range ch {
+		// Get Metadata
+		syncGr.Source.GetObjectMeta(&obj)
+
 		// Filter objects
 		if filterObject(&obj) {
 			atomic.AddUint64(&counter.skipObjCnt, 1)
