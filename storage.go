@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/eapache/channels"
 	"github.com/karrick/godirwalk"
-	"io"
 	"io/ioutil"
 	"mime"
 	"os"
@@ -313,17 +312,6 @@ func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 	destPath := filepath.Join(storage.dir, obj.Key)
 	obj.Content, err = ioutil.ReadFile(destPath)
 	if err != nil {
-		return err
-	}
-
-	fh, err := os.Open(destPath)
-	if err != nil {
-		return err
-	}
-	defer fh.Close()
-
-	_, err = fh.Read(obj.Content)
-	if err != nil && err != io.EOF {
 		return err
 	}
 
