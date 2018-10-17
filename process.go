@@ -53,7 +53,7 @@ func processObj(ch <-chan Object, wg *sync.WaitGroup) {
 Main:
 	for obj := range ch {
 		// Get Metadata
-		if cli.Source.Type != s3Conn {
+		if syncGr.Source.GetStorageType() != s3Conn {
 			syncGr.Source.GetObjectMeta(&obj)
 		}
 
