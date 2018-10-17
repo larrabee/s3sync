@@ -42,6 +42,7 @@ type Storage interface {
 	PutObject(object *Object) error
 	GetObjectContent(obj *Object) error
 	GetObjectMeta(obj *Object) error
+	GetStorageType() ConnType
 }
 
 //AWSStorage configuration
@@ -59,7 +60,7 @@ type AWSStorage struct {
 
 //FSStorage configuration
 type FSStorage struct {
-	dir      string
+	Dir      string
 	filePerm os.FileMode
 	dirPerm  os.FileMode
 	workers  uint
@@ -101,7 +102,7 @@ func NewAWSStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 
 //NewFSStorage return new configured FS storage
 func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, workers uint) (storage FSStorage) {
-	storage.dir = filepath.Clean(dir) + "/"
+	storage.Dir = filepath.Clean(dir) + "/"
 	storage.filePerm = filePerm
 	storage.dirPerm = dirPerm
 	storage.workers = workers
@@ -232,6 +233,11 @@ func (storage AWSStorage) GetObjectMeta(obj *Object) error {
 	return nil
 }
 
+//GetStorageType return storage type
+func (storage AWSStorage) GetStorageType() ConnType {
+	return s3Conn
+}
+
 //List FS and send founded objects to chan
 func (storage FSStorage) List(output chan<- Object) error {
 	prefixChan := channels.NewInfiniteChannel()
@@ -263,7 +269,7 @@ func (storage FSStorage) List(output chan<- Object) error {
 					continue
 				} else {
 					atomic.AddUint64(&counter.totalObjCnt, 1)
-					output <- Object{Key: strings.TrimPrefix(path, storage.dir)}
+					output <- Object{Key: strings.TrimPrefix(path, storage.Dir)}
 				}
 			}
 			wg.Done()
@@ -276,7 +282,7 @@ func (storage FSStorage) List(output chan<- Object) error {
 
 	// Start listing from storage.prefix
 	wg.Add(1)
-	prefixChan.In() <- storage.dir
+	prefixChan.In() <- storage.Dir
 
 	go func() {
 		wg.Wait()
@@ -295,7 +301,7 @@ func (storage FSStorage) List(output chan<- Object) error {
 
 //PutObject save object to FS
 func (storage FSStorage) PutObject(obj *Object) error {
-	destPath := filepath.Join(storage.dir, obj.Key)
+	destPath := filepath.Join(storage.Dir, obj.Key)
 	err := os.MkdirAll(filepath.Dir(destPath), storage.dirPerm)
 	if err != nil {
 		return err
@@ -309,7 +315,7 @@ func (storage FSStorage) PutObject(obj *Object) error {
 
 //GetObjectContent read object content from FS
 func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
-	destPath := filepath.Join(storage.dir, obj.Key)
+	destPath := filepath.Join(storage.Dir, obj.Key)
 	obj.Content, err = ioutil.ReadFile(destPath)
 	if err != nil {
 		return err
@@ -327,7 +333,7 @@ func (storage FSStorage) GetObjectContent(obj *Object) (err error) {
 
 //GetObjectMeta update object metadata from FS
 func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
-	destPath := filepath.Join(storage.dir, obj.Key)
+	destPath := filepath.Join(storage.Dir, obj.Key)
 
 	obj.ContentType = mime.TypeByExtension(filepath.Ext(destPath))
 	fileInfo, err := os.Stat(destPath)
@@ -337,6 +343,11 @@ func (storage FSStorage) GetObjectMeta(obj *Object) (err error) {
 	obj.ETag = etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
 	obj.Mtime = fileInfo.ModTime()
 	return nil
+}
+
+//GetStorageType return storage type
+func (storage FSStorage) GetStorageType() ConnType {
+	return fsConn
 }
 
 //etagFromMetadata generate ETAG from FS attributes. Useful for further use

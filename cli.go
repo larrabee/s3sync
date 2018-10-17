@@ -14,12 +14,12 @@ var (
 	date    = "unknown"
 )
 
-type connType int
+type ConnType int
 type onFailAction int
 
 const (
-	s3Conn connType = 1
-	fsConn connType = 2
+	s3Conn ConnType = 1
+	fsConn ConnType = 2
 
 	onFailFatal onFailAction = 1
 	onFailLog   onFailAction = 2
@@ -34,7 +34,7 @@ type argsParsed struct {
 }
 
 type connect struct {
-	Type   connType
+	Type   ConnType
 	Bucket string
 	Path   string
 }
