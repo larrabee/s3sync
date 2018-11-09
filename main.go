@@ -32,7 +32,7 @@ func main() {
 	}
 
 	if cli.DisableHTTP2 {
-		os.Setenv("GODEBUG", os.Getenv("GODEBUG") + "http2client=0")
+		os.Setenv("GODEBUG", os.Getenv("GODEBUG")+"http2client=0")
 	}
 
 	configureLogging()
@@ -48,15 +48,24 @@ func main() {
 
 	switch cli.Source.Type {
 	case s3Conn:
-		syncGr.Source = NewAWSStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint,
+		syncGr.Source = NewS3Storage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint,
+			cli.Source.Bucket, cli.Source.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
+		)
+	case s3StConn:
+		syncGr.Source = NewS3StStorage(cli.SourceKey, cli.SourceSecret, cli.SourceRegion, cli.SourceEndpoint,
 			cli.Source.Bucket, cli.Source.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
 		)
 	case fsConn:
 		syncGr.Source = NewFSStorage(cli.Source.Path, permFile, permDir, cli.Workers)
 	}
+
 	switch cli.Target.Type {
 	case s3Conn:
-		syncGr.Target = NewAWSStorage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint,
+		syncGr.Target = NewS3Storage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint,
+			cli.Target.Bucket, cli.Target.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
+		)
+	case s3StConn:
+		syncGr.Target = NewS3StStorage(cli.TargetKey, cli.TargetSecret, cli.TargetRegion, cli.TargetEndpoint,
 			cli.Target.Bucket, cli.Target.Path, cli.Acl, s3keysPerReq, cli.Workers, cli.Retry, cli.RetryInterval,
 		)
 	case fsConn:
