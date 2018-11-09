@@ -18,8 +18,9 @@ type ConnType int
 type onFailAction int
 
 const (
-	s3Conn ConnType = 1
-	fsConn ConnType = 2
+	s3Conn   ConnType = 1
+	fsConn   ConnType = 2
+	s3StConn ConnType = 3
 
 	onFailFatal onFailAction = 1
 	onFailLog   onFailAction = 2
@@ -114,7 +115,6 @@ func GetCliArgs() (cli argsParsed, err error) {
 		cli.OnFail = onFailLog
 	default:
 		p.Fail("--on-fail must be one of \"fatal, log\"")
-
 	}
 
 	cli.RetryInterval = time.Duration(cli.args.RetryInterval) * time.Second
@@ -136,6 +136,10 @@ func parseConn(cStr string) (conn connect, err error) {
 	switch u.Scheme {
 	case "s3":
 		conn.Type = s3Conn
+		conn.Bucket = u.Host
+		conn.Path = strings.TrimPrefix(u.Path, "/")
+	case "s3st":
+		conn.Type = s3StConn
 		conn.Bucket = u.Host
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	default:
