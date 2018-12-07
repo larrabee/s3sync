@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -16,13 +18,28 @@ type Counter struct {
 	startTime   time.Time
 }
 
-func failedObjAction(obj Object) {
+func failedObjAction(obj Object, objErr error) {
 	atomic.AddUint64(&counter.failObjCnt, 1)
 	switch cli.OnFail {
 	case onFailLog:
-		log.Errorf("Failed to sync object: %s, skipping it\n", obj.Key)
+		log.Errorf("Failed to sync object: %s, err: %s, skipping it\n", obj.Key, objErr)
 	case onFailFatal:
-		log.Fatalf("Failed to sync object: %s, exiting\n", obj.Key)
+		log.Fatalf("Failed to sync object: %s, err: %s, exiting\n", obj.Key, objErr)
+	case onFailIgnoreMissing:
+		if objErr != nil {
+			if aerr, ok := objErr.(awserr.Error); ok {
+				switch aerr.Code() {
+				case s3.ErrCodeNoSuchKey:
+					log.Errorf("Object not found: %s, skipping it\n", obj.Key)
+				case "NotFound":
+					log.Errorf("Object not found: %s, skipping it\n", obj.Key)
+				default:
+					log.Fatalf("Failed to sync object: %s, err: %s, exiting\n", obj.Key, objErr)
+				}
+			} else {
+				log.Fatalf("Failed to sync object: %s, err: %s, exiting\n", obj.Key, objErr)
+			}
+		}
 	}
 }
 
@@ -70,7 +87,7 @@ Main:
 			} else {
 				log.Debugf("Getting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					failedObjAction(obj)
+					failedObjAction(obj, err)
 					continue Main
 				}
 				time.Sleep(cli.RetryInterval)
@@ -85,7 +102,7 @@ Main:
 			} else {
 				log.Debugf("Putting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					failedObjAction(obj)
+					failedObjAction(obj, err)
 					continue Main
 				}
 				time.Sleep(cli.RetryInterval)
