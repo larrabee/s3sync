@@ -22,8 +22,9 @@ const (
 	fsConn   ConnType = 2
 	s3StConn ConnType = 3
 
-	onFailFatal onFailAction = 1
-	onFailLog   onFailAction = 2
+	onFailFatal         onFailAction = 1
+	onFailLog           onFailAction = 2
+	onFailIgnoreMissing onFailAction = 3
 )
 
 type argsParsed struct {
@@ -61,7 +62,7 @@ type args struct {
 	FilterTimestamp int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
 	Acl             string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	Debug           bool     `arg:"-d" help:"Show debug logging"`
-	OnFail          string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log"`
+	OnFail          string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log, ignoremissing"`
 	DisableHTTP2    bool     `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 }
 
@@ -113,6 +114,8 @@ func GetCliArgs() (cli argsParsed, err error) {
 		cli.OnFail = onFailFatal
 	case "log":
 		cli.OnFail = onFailLog
+	case "ignoremissing":
+		cli.OnFail = onFailIgnoreMissing
 	default:
 		p.Fail("--on-fail must be one of \"fatal, log\"")
 	}
