@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/eapache/channels"
 	"io/ioutil"
+	"net/url"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -76,7 +77,8 @@ func (storage S3Storage) List(output chan<- Object) error {
 			}
 			for _, o := range p.Contents {
 				atomic.AddUint64(&counter.totalObjCnt, 1)
-				output <- Object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
+				key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+				output <- Object{Key: key, ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
 			}
 			return !lastPage // continue paging
 		}
@@ -92,6 +94,7 @@ func (storage S3Storage) List(output chan<- Object) error {
 					Prefix:    aws.String(prefix.(string)),
 					MaxKeys:   aws.Int64(storage.keysPerReq),
 					Delimiter: aws.String("/"),
+					EncodingType: aws.String(s3.EncodingTypeUrl),
 				}, listObjectsFn)
 
 				if (err != nil) && (i == storage.retry) {
@@ -141,6 +144,7 @@ func (storage S3Storage) PutObject(obj *Object) error {
 		Body:        bytes.NewReader(obj.Content),
 		ContentType: aws.String(obj.ContentType),
 		ACL:         aws.String(storage.acl),
+
 	})
 	if err != nil {
 		return err
