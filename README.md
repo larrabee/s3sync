@@ -20,8 +20,8 @@ With 256 workers we get avg listing and sync speed around 2k obj/sec (small obje
 ```
 >> ./s3sync --help
 Really fast sync tool for S3
-Version: dev, commit: none, built at: unknown
-Usage: s3sync [--sk SK] [--ss SS] [--sr SR] [--se SE] [--tk TK] [--ts TS] [--tr TR] [--te TE] [--workers WORKERS] [--retry RETRY] [--rs RS] [--fe FE] [--ft FT] [--acl ACL] [--debug] [--on-fail ON-FAIL] SOURCE TARGET
+Version: 1.12, commit: 36269e3514d5d1c19d40f6df8cb76e41d670da32, built at: 2019-04-03T07:38:43Z
+Usage: s3sync [--sk SK] [--ss SS] [--sr SR] [--se SE] [--tk TK] [--ts TS] [--tr TR] [--te TE] [--workers WORKERS] [--retry RETRY] [--rs RS] [--fe FE] [--ft FT] [--acl ACL] [--debug] [--on-fail ON-FAIL] [--disable-http2] SOURCE TARGET
 
 Positional arguments:
   SOURCE
@@ -46,7 +46,8 @@ Options:
   --acl ACL              S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control [default: private]
   --debug, -d            Show debug logging
   --on-fail ON-FAIL, -f ON-FAIL
-                         Action on failed. Possible values: fatal, log [default: fatal]
+                         Action on failed. Possible values: fatal, log, ignoremissing [default: fatal]
+  --disable-http2        Disable HTTP2 for http client
   --help, -h             display this help and exit
   --version              display version and exit
 ```
