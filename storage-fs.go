@@ -63,6 +63,30 @@ func (storage FSStorage) List(output chan<- Object) error {
 					wg.Add(1)
 					prefixChan.In() <- path
 					continue
+				} else if dirent.IsSymlink() {
+
+					symTarget, err := filepath.EvalSymlinks(path)
+					if err != nil {
+						wg.Done()
+						listResultChan <- err
+						return
+					}
+
+					symStat, err := os.Stat(symTarget)
+					if err != nil {
+						wg.Done()
+						listResultChan <- err
+						return
+					}
+
+					if symStat.IsDir() {
+						wg.Add(1)
+						prefixChan.In() <- path
+						continue
+					} else {
+						atomic.AddUint64(&counter.totalObjCnt, 1)
+						output <- Object{Key: strings.TrimPrefix(path, storage.Dir)}
+					}
 				} else {
 					atomic.AddUint64(&counter.totalObjCnt, 1)
 					output <- Object{Key: strings.TrimPrefix(path, storage.Dir)}
