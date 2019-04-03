@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
+	"net/url"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -64,7 +65,8 @@ func (storage S3StStorage) List(output chan<- Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			atomic.AddUint64(&counter.totalObjCnt, 1)
-			output <- Object{Key: aws.StringValue(o.Key), ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
+			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+			output <- Object{Key: key, ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
 		}
 		if lastPage {
 			close(output)
@@ -77,6 +79,7 @@ func (storage S3StStorage) List(output chan<- Object) error {
 		Bucket:  aws.String(storage.awsBucket),
 		Prefix:  aws.String(storage.prefix),
 		MaxKeys: aws.Int64(storage.keysPerReq),
+		EncodingType: aws.String(s3.EncodingTypeUrl),
 	}, listObjectsFn)
 
 	return err
