@@ -55,15 +55,19 @@ type args struct {
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
 	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
 	// Sync config
-	Workers         uint     `arg:"-w" help:"Workers count"`
-	Retry           uint     `arg:"-r" help:"Max numbers of retries to sync file"`
-	RetryInterval   uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
-	FilterExtension []string `arg:"--fe,separate" help:"Sync only files with given extensions"`
-	FilterTimestamp int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
-	Acl             string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
-	Debug           bool     `arg:"-d" help:"Show debug logging"`
-	OnFail          string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log, ignoremissing"`
-	DisableHTTP2    bool     `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
+	Workers                 uint     `arg:"-w" help:"Workers count"`
+	Retry                   uint     `arg:"-r" help:"Max numbers of retries to sync file"`
+	RetryInterval           uint     `arg:"--rs" help:"Sleep interval (sec) between sync retries on error"`
+	FilterExtension         []string `arg:"--fe,separate" help:"Sync only files with given extensions"`
+	FilterContentType       []string `arg:"--fct,separate" help:"Sync only files with given Content-Type"`
+	FilterRevertExtension   []string `arg:"--fre,separate" help:"Skip files with given extensions"`
+	FilterRevertContentType []string `arg:"--frct,separate" help:"Skip files with given Content-Type"`
+	FilterTimestamp         int64    `arg:"--ft" help:"Sync only files modified after given unix timestamp"`
+	FilterRevertTimestamp   int64    `arg:"--frt" help:"Sync only files modified before given unix timestamp"`
+	Acl                     string   `arg:"--acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
+	Debug                   bool     `arg:"-d" help:"Show debug logging"`
+	OnFail                  string   `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, log, ignoremissing"`
+	DisableHTTP2            bool     `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 }
 
 //Version return program version string on human format
