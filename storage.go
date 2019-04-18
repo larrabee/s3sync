@@ -6,11 +6,13 @@ import (
 
 //Object contain content and metadata of S3 object
 type Object struct {
-	Key         string
-	ETag        string
-	Mtime       time.Time
-	Content     []byte
-	ContentType string
+	Key                string
+	ETag               string
+	Mtime              time.Time
+	Content            []byte
+	ContentType        string
+	ContentDisposition string
+	Metadata           map[string]*string
 }
 
 //SyncGroup contain Source and Target configuration. Thread safe

@@ -59,19 +59,79 @@ func filterObject(obj *Object) bool {
 		}
 	}
 
+	// Filter object by Content-Type
+	if len(cli.FilterContentType) > 0 {
+		flag := false
+		for _, ct := range cli.FilterContentType {
+			if obj.ContentType == ct {
+				flag = true
+				break
+			}
+		}
+		if flag == false {
+			return true
+		}
+	}
+
+	// Revert Filter object by extension
+	if len(cli.FilterRevertExtension) > 0 {
+		flag := false
+		fileExt := filepath.Ext(obj.Key)
+		for _, ext := range cli.FilterRevertExtension {
+			if fileExt == ext {
+				flag = true
+				break
+			}
+		}
+		if flag == true {
+			return true
+		}
+	}
+
+	// Revert Filter object by Content-Type
+	if len(cli.FilterRevertContentType) > 0 {
+		flag := false
+		for _, ct := range cli.FilterRevertContentType {
+			if obj.ContentType == ct {
+				flag = true
+				break
+			}
+		}
+		if flag == true {
+			return true
+		}
+	}
+
 	// Filter object by modify time
 	if (cli.FilterTimestamp > 0) && (obj.Mtime.Unix() < cli.FilterTimestamp) {
 		return true
 	}
+
+	// Revert Filter object by modify time
+	if (cli.FilterRevertTimestamp > 0) && (obj.Mtime.Unix() > cli.FilterRevertTimestamp) {
+		return true
+	}
+
 	return false
 }
 
 func processObj(ch <-chan Object, wg *sync.WaitGroup) {
 Main:
 	for obj := range ch {
-		// Get Metadata
-		if syncGr.Source.GetStorageType() != s3Conn && syncGr.Source.GetStorageType() != s3StConn {
-			syncGr.Source.GetObjectMeta(&obj)
+
+		// Get Obj Metadata
+		for i := uint(0); i <= cli.Retry; i++ {
+			if err := syncGr.Source.GetObjectMeta(&obj); err == nil {
+				break
+			} else {
+				log.Debugf("Getting obj metadata %s failed with err: %s", obj.Key, err)
+				if i == cli.Retry {
+					failedObjAction(obj, err)
+					continue Main
+				}
+				time.Sleep(cli.RetryInterval)
+				continue
+			}
 		}
 
 		// Filter objects

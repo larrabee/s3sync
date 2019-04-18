@@ -76,9 +76,9 @@ func (storage S3StStorage) List(output chan<- Object) error {
 	}
 
 	err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
-		Bucket:  aws.String(storage.awsBucket),
-		Prefix:  aws.String(storage.prefix),
-		MaxKeys: aws.Int64(storage.keysPerReq),
+		Bucket:       aws.String(storage.awsBucket),
+		Prefix:       aws.String(storage.prefix),
+		MaxKeys:      aws.Int64(storage.keysPerReq),
 		EncodingType: aws.String(s3.EncodingTypeUrl),
 	}, listObjectsFn)
 
@@ -88,11 +88,13 @@ func (storage S3StStorage) List(output chan<- Object) error {
 //PutObject to bucket
 func (storage S3StStorage) PutObject(obj *Object) error {
 	_, err := storage.awsSvc.PutObject(&s3.PutObjectInput{
-		Bucket:      aws.String(storage.awsBucket),
-		Key:         aws.String(filepath.Join(storage.prefix, obj.Key)),
-		Body:        bytes.NewReader(obj.Content),
-		ContentType: aws.String(obj.ContentType),
-		ACL:         aws.String(storage.acl),
+		Bucket:             aws.String(storage.awsBucket),
+		Key:                aws.String(filepath.Join(storage.prefix, obj.Key)),
+		Body:               bytes.NewReader(obj.Content),
+		ContentType:        aws.String(obj.ContentType),
+		ContentDisposition: aws.String(obj.ContentDisposition),
+		ACL:                aws.String(storage.acl),
+		Metadata:           obj.Metadata,
 	})
 	if err != nil {
 		return err
@@ -116,7 +118,9 @@ func (storage S3StStorage) GetObjectContent(obj *Object) error {
 	}
 
 	obj.ContentType = aws.StringValue(result.ContentType)
+	obj.ContentDisposition = aws.StringValue(result.ContentDisposition)
 	obj.ETag = aws.StringValue(result.ETag)
+	obj.Metadata = result.Metadata
 	obj.Mtime = aws.TimeValue(result.LastModified)
 	return nil
 }
@@ -132,7 +136,9 @@ func (storage S3StStorage) GetObjectMeta(obj *Object) error {
 	}
 
 	obj.ContentType = aws.StringValue(result.ContentType)
+	obj.ContentDisposition = aws.StringValue(result.ContentDisposition)
 	obj.ETag = aws.StringValue(result.ETag)
+	obj.Metadata = result.Metadata
 	obj.Mtime = aws.TimeValue(result.LastModified)
 	return nil
 }
