@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
@@ -28,6 +30,8 @@ type S3StStorage struct {
 
 //NewS3Storage return new configured S3 storage
 func NewS3StStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix, acl string, keysPerReq int64, workers, retry uint, retryInterval time.Duration) (storage S3StStorage) {
+	sess := session.Must(session.NewSession())
+
 	awsConfig := aws.NewConfig()
 	awsConfig.S3ForcePathStyle = aws.Bool(true)
 	awsConfig.CredentialsChainVerboseErrors = aws.Bool(true)
@@ -40,6 +44,9 @@ func NewS3StStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName,
 			[]credentials.Provider{
 				&credentials.EnvProvider{},
 				&credentials.SharedCredentialsProvider{},
+				&ec2rolecreds.EC2RoleProvider{
+            Client: ec2metadata.New(sess),
+        },
 			})
 		awsConfig.WithCredentials(cred)
 	}
