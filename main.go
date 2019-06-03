@@ -100,11 +100,12 @@ func configureLogging() {
 		log.SetLevel(logrus.InfoLevel)
 	}
 	log.Formatter = &logrus.TextFormatter{}
-	log.Out = os.Stdout
+	log.SetOutput(os.Stdout)
 }
 
 func startProgressBar(quit <-chan bool) {
 	writer := uilive.New()
+	writer.Out = os.Stderr
 	writer.Start()
 	for {
 		select {
