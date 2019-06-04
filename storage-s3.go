@@ -80,7 +80,8 @@ func (storage S3Storage) List(output chan<- Object) error {
 		listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 			for _, o := range p.CommonPrefixes {
 				wg.Add(1)
-				prefixChan.In() <- aws.StringValue(o.Prefix)
+				prefix, _ := url.QueryUnescape(aws.StringValue(o.Prefix))
+				prefixChan.In() <- prefix
 			}
 			for _, o := range p.Contents {
 				atomic.AddUint64(&counter.totalObjCnt, 1)
@@ -91,7 +92,7 @@ func (storage S3Storage) List(output chan<- Object) error {
 		}
 
 		for prefix := range prefixChan.Out() {
-			for i := uint(0); i <= storage.retry; i++ {
+			for i := uint(0);; i++ {
 				if stopListing {
 					wg.Done()
 					return
@@ -103,18 +104,17 @@ func (storage S3Storage) List(output chan<- Object) error {
 					Delimiter:    aws.String("/"),
 					EncodingType: aws.String(s3.EncodingTypeUrl),
 				}, listObjectsFn)
-
-				if (err != nil) && (i == storage.retry) {
-					wg.Done()
-					listResultChan <- err
-					break
-				} else if err == nil {
-					wg.Done()
-					break
-				} else {
+				if (err != nil) && (i < storage.retry) {
 					log.Debugf("S3 listing failed with error: %s", err)
 					time.Sleep(storage.retryInterval)
 					continue
+				} else if (err != nil) && (i == storage.retry) {
+					wg.Done()
+					listResultChan <- err
+					break
+				} else {
+					wg.Done()
+					break
 				}
 			}
 		}
