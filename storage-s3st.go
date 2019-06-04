@@ -69,12 +69,16 @@ func NewS3StStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName,
 
 //List S3 bucket and send founded objects to chan
 func (storage S3StStorage) List(output chan<- Object) error {
+	var lastMarker *string
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			atomic.AddUint64(&counter.totalObjCnt, 1)
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+			log.Debugf(key)
 			output <- Object{Key: key, ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
 		}
+		log.Debugf("Marker: %s", aws.StringValue(p.Marker))
+		lastMarker = p.Marker
 		if lastPage {
 			close(output)
 		}
@@ -82,14 +86,26 @@ func (storage S3StStorage) List(output chan<- Object) error {
 
 	}
 
-	err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
-		Bucket:       aws.String(storage.awsBucket),
-		Prefix:       aws.String(storage.prefix),
-		MaxKeys:      aws.Int64(storage.keysPerReq),
-		EncodingType: aws.String(s3.EncodingTypeUrl),
-	}, listObjectsFn)
-
-	return err
+	for i:= uint(0);; i++ {
+		err := storage.awsSvc.ListObjectsPages(&s3.ListObjectsInput{
+			Bucket:       aws.String(storage.awsBucket),
+			Prefix:       aws.String(storage.prefix),
+			MaxKeys:      aws.Int64(storage.keysPerReq),
+			EncodingType: aws.String(s3.EncodingTypeUrl),
+			Marker:       lastMarker,
+		}, listObjectsFn)
+		if (err != nil) && (i < storage.retry) {
+			log.Debugf("S3 listing failed with error: %s", err)
+			time.Sleep(storage.retryInterval)
+			continue
+		} else if (err != nil) && (i == storage.retry) {
+			log.Errorf("S3 listing failed with error: %s", err)
+			return err
+		} else {
+			log.Debugf("Listing bucket finished")
+			return err
+		}
+	}
 }
 
 //PutObject to bucket
