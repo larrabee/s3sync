@@ -18,7 +18,7 @@ type Counter struct {
 	startTime   time.Time
 }
 
-func failedObjAction(obj Object, objErr error) {
+func failedObjAction(obj *Object, objErr error) {
 	atomic.AddUint64(&counter.failObjCnt, 1)
 	switch cli.OnFail {
 	case onFailLog:
@@ -126,7 +126,7 @@ Main:
 			} else {
 				log.Debugf("Getting obj metadata %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					failedObjAction(obj, err)
+					failedObjAction(&obj, err)
 					continue Main
 				}
 				time.Sleep(cli.RetryInterval)
@@ -147,7 +147,7 @@ Main:
 			} else {
 				log.Debugf("Getting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					failedObjAction(obj, err)
+					failedObjAction(&obj, err)
 					continue Main
 				}
 				time.Sleep(cli.RetryInterval)
@@ -162,7 +162,7 @@ Main:
 			} else {
 				log.Debugf("Putting obj %s failed with err: %s", obj.Key, err)
 				if i == cli.Retry {
-					failedObjAction(obj, err)
+					failedObjAction(&obj, err)
 					continue Main
 				}
 				time.Sleep(cli.RetryInterval)
