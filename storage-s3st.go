@@ -74,10 +74,8 @@ func (storage S3StStorage) List(output chan<- Object) error {
 		for _, o := range p.Contents {
 			atomic.AddUint64(&counter.totalObjCnt, 1)
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
-			log.Debugf(key)
 			output <- Object{Key: key, ETag: aws.StringValue(o.ETag), Mtime: aws.TimeValue(o.LastModified)}
 		}
-		log.Debugf("Marker: %s", aws.StringValue(p.Marker))
 		lastMarker = p.Marker
 		if lastPage {
 			close(output)
