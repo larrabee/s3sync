@@ -124,6 +124,22 @@ func main() {
 		syncGroup.AddPipeStep(loadObjMetaStep)
 	}
 
+	if cli.FilterMtimeAfter > 0 {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:     "FilterObjectsByMtimeAfter",
+			Fn:       FilterObjectsByMtimeAfter,
+			ChanSize: cli.Workers,
+		})
+	}
+
+	if cli.FilterMtimeBefore > 0 {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:     "FilterObjectsByMtimeBefore",
+			Fn:       FilterObjectsByMtimeBefore,
+			ChanSize: cli.Workers,
+		})
+	}
+
 	if len(cli.FilterCT) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:     "FilterObjByCT",
