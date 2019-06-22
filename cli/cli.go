@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/alexflint/go-arg"
 	"github.com/larrabee/s3sync/storage"
+	"github.com/mattn/go-isatty"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -131,6 +133,10 @@ func GetCliArgs() (cli argsParsed, err error) {
 	if cli.Target, err = parseConn(cli.args.Target); err != nil {
 		return cli, err
 	}
+	if cli.args.ShowProgress && !isatty.IsTerminal(os.Stdout.Fd()) {
+		p.Fail("Progress (--sync-progress) require tty")
+	}
+
 	return
 }
 

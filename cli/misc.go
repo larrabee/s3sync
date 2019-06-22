@@ -42,17 +42,3 @@ var ACLUpdater pipeline.PipelineFn = func(group *pipeline.Group, input <-chan *s
 		}
 	}
 }
-
-var TestTransformer pipeline.PipelineFn = func(group *pipeline.Group, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
-	for obj := range input {
-		select {
-		case <-group.Ctx.Done():
-			errChan <- group.Ctx.Err()
-			return
-		default:
-			newKey := *obj.Key + "asd"
-			obj.Key = &newKey
-			output <- obj
-		}
-	}
-}

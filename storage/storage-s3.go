@@ -31,7 +31,7 @@ type S3Storage struct {
 }
 
 //NewS3Storage return new configured S3 storage
-func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, listRetry uint, listRetryInterval time.Duration) *S3Storage {
+func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3Storage {
 	sess := session.Must(session.NewSession())
 
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
@@ -63,8 +63,8 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		awsSvc:        s3.New(sess),
 		prefix:        prefix,
 		keysPerReq:    keysPerReq,
-		retryCnt:      listRetry,
-		retryInterval: listRetryInterval,
+		retryCnt:      retryCnt,
+		retryInterval: retryInterval,
 		stats:         Stats{},
 		ctx:           context.TODO(),
 	}

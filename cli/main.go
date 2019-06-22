@@ -9,15 +9,17 @@ import (
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 )
 
 var cli argsParsed
 var log = logrus.New()
-var live uilive.Writer
+var live *uilive.Writer
+var filteredCnt uint64 = 0
 
 const (
 	permDir         os.FileMode = 0750
@@ -33,9 +35,17 @@ func init() {
 	if err != nil {
 		log.Fatalf("cli args parsing failed with error: %s", err)
 	}
-	if cli.ShowProgress && terminal.is
-	log.SetLevel(logrus.DebugLevel)
+	if cli.ShowProgress {
+		live = uilive.New()
+		live.Start()
+		log.SetOutput(live.Bypass())
+		log.SetFormatter(&logrus.TextFormatter{ForceColors:true})
+	}
+	if cli.Debug {
+		log.SetLevel(logrus.DebugLevel)
+	}
 	pipeline.Log = log
+	storage.Log = log
 }
 
 func main() {
@@ -48,6 +58,9 @@ func main() {
 
 	syncGroup := pipeline.NewGroup()
 	syncGroup.WithContext(ctx)
+
+	sysStopChan := make(chan os.Signal, 1)
+	signal.Notify(sysStopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	var sourceStorage, targetStorage storage.Storage
 	switch cli.Source.Type {
@@ -80,12 +93,7 @@ func main() {
 		Name:     "ListSource",
 		Fn:       ListSourceStorage,
 		ChanSize: cli.Workers,
-	})
-
-	syncGroup.AddPipeStep(pipeline.Step{
-		Name:     "TestTransform",
-		Fn:       TestTransformer,
-		ChanSize: cli.Workers,
+		AddWorkers: 1,
 	})
 
 	if len(cli.FilterExt) > 0 {
@@ -166,57 +174,77 @@ func main() {
 		ChanSize:   cli.Workers,
 	})
 
-	//syncStartTime := time.Now()
+	syncStartTime := time.Now()
 	syncGroup.Run()
 
 	progressChanQ := make(chan bool)
-	if cli.ShowProgress {
+	getStatsStr := func() string {
+		dur := time.Since(syncStartTime).Seconds()
+		sStats := syncGroup.Source.GetStats()
+		tStats := syncGroup.Target.GetStats()
+		str := fmt.Sprintf("SOURCE: Listed: %d (%.f obj/sec); MetaLoaded: %d; DataLoaded: %d;\n",
+			sStats.ListedObjects, float64(sStats.ListedObjects)/dur, sStats.MetaLoadedObjects, sStats.DataLoadedObjects)
+		str += fmt.Sprintf("FILTERED: Total: %d;\n", filteredCnt)
+		str += fmt.Sprintf("TARGET: Uploaded: %d (%.f obj/sec);\n", tStats.UploadedObjects, float64(tStats.UploadedObjects)/dur)
+		str += fmt.Sprintf("TIME: Duration: %.f;\n", dur)
+		return str
+	}
 
+	if cli.ShowProgress {
+		go func(quit <-chan bool) {
+			for {
+				select {
+				case <-quit:
+					return
+				default:
+					msg := getStatsStr()
+					_, _ = fmt.Fprint(live, msg)
+					time.Sleep(time.Second)
+				}
+			}
+		}(progressChanQ)
 	}
 
 	syncStatus := 0
-WaitLoop:
-	for err := range syncGroup.ErrChan() {
-		if err == nil {
-			log.Infof("Sync Done")
+
+	WaitLoop:
+	for {
+		select {
+		case recSignal := <-sysStopChan:
+			log.Warnf("Receive signal: %s, terminating", recSignal.String())
+			cancel()
+		case err := <- syncGroup.ErrChan():
+			if err == nil {
+				log.Infof("Sync Done")
+				break WaitLoop
+			}
+			if cli.OnFail == onFailSkip {
+				log.Errorf("Sync err: %s, skipping", err)
+				continue WaitLoop
+			}
+			aerr, ok := err.(*pipeline.PipelineError).Err.(awserr.Error)
+			if (cli.OnFail == onFailSkipMissing) && ok && ((aerr.Code() == s3.ErrCodeNoSuchKey) || (aerr.Code() == "NotFound")) {
+				log.Infof("Skip missing object, err: %s", aerr.Error())
+				continue WaitLoop
+			}
+
+			if err.(*pipeline.PipelineError).Err == context.Canceled {
+				continue WaitLoop
+			}
+
+			log.Errorf("Sync error: %s, terminating", err)
+			syncStatus = 1
+			cancel()
 			break WaitLoop
 		}
-		if cli.OnFail == onFailSkip {
-			log.Errorf("Sync err: %s, skipping", err)
-			continue WaitLoop
-		}
-
-		aerr, ok := err.(*pipeline.PipelineError).Err.(awserr.Error)
-		if (cli.OnFail == onFailSkipMissing) && ok && ((aerr.Code() == s3.ErrCodeNoSuchKey) || (aerr.Code() == "NotFound")) {
-			log.Infof("Skip missing object, err: %s", aerr.Error())
-			continue WaitLoop
-		}
-
-		log.Fatalf("Sync error: %s, terminating", err)
-		syncStatus = 1
-		cancel()
 	}
 
 	if cli.ShowProgress {
 		progressChanQ <- true
 	}
 
-	os.Exit(syncStatus)
-}
+	msg := getStatsStr()
+	log.Infof("Stats: %s\n", msg)
 
-func startProgressBar(quit <-chan bool) {
-	writer := uilive.New()
-	writer.Start()
-	for {
-		select {
-		case <-quit:
-			writer.Stop()
-			return
-		default:
-			dur := time.Since(counter.startTime).Seconds()
-			fmt.Fprintf(writer, "Synced: %d; Skipped: %d; Failed: %d; Total processed: %d\nAvg syncing speed: %.f obj/sec; Avg listing speed: %.f obj/sec\n",
-				counter.sucObjCnt, counter.skipObjCnt, counter.failObjCnt, counter.totalObjCnt, float64(counter.sucObjCnt)/dur, float64(counter.totalObjCnt)/dur)
-			time.Sleep(time.Second)
-		}
-	}
+	log.Exit(syncStatus)
 }
