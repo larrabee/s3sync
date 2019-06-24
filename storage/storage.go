@@ -30,14 +30,6 @@ type Object struct {
 	CacheControl       *string
 }
 
-type Stats struct {
-	ListedObjects     uint64
-	DataLoadedObjects uint64
-	MetaLoadedObjects uint64
-	UploadedObjects   uint64
-	DeletedObjects    uint64
-}
-
 //Storage interface
 type Storage interface {
 	WithContext(ctx context.Context)
@@ -47,5 +39,4 @@ type Storage interface {
 	GetObjectMeta(obj *Object) error
 	DeleteObject(obj *Object) error
 	GetStorageType() Type
-	GetStats() Stats
 }

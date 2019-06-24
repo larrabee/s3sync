@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -22,7 +21,6 @@ type FSStorage struct {
 	filePerm os.FileMode
 	dirPerm  os.FileMode
 	bufSize  int
-	stats    Stats
 	ctx      context.Context
 }
 
@@ -32,7 +30,6 @@ func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int) *FSSto
 		Dir:      filepath.Clean(dir) + "/",
 		filePerm: filePerm,
 		dirPerm:  dirPerm,
-		stats:    Stats{},
 	}
 	if bufSize < godirwalk.MinimumScratchBufferSize {
 		storage.bufSize = godirwalk.DefaultScratchBufferSize
@@ -55,7 +52,6 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 		default:
 			if de.IsRegular() {
 				key := strings.TrimPrefix(path, storage.Dir)
-				atomic.AddUint64(&storage.stats.ListedObjects, 1)
 				output <- &Object{Key: &key}
 			}
 			if de.IsSymlink() {
@@ -69,7 +65,6 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 				}
 				if !symStat.IsDir() {
 					key := strings.TrimPrefix(path, storage.Dir)
-					atomic.AddUint64(&storage.stats.ListedObjects, 1)
 					output <- &Object{Key: &key}
 				}
 			}
@@ -101,7 +96,6 @@ func (storage *FSStorage) PutObject(obj *Object) error {
 		return err
 	}
 
-	atomic.AddUint64(&storage.stats.UploadedObjects, 1)
 	return nil
 }
 
@@ -127,7 +121,6 @@ func (storage *FSStorage) GetObjectContent(obj *Object) error {
 	obj.ContentType = &contentType
 	obj.Mtime = &Mtime
 
-	atomic.AddUint64(&storage.stats.DataLoadedObjects, 1)
 	return nil
 }
 
@@ -147,7 +140,6 @@ func (storage *FSStorage) GetObjectMeta(obj *Object) error {
 	obj.ContentType = &contentType
 	obj.Mtime = &Mtime
 
-	atomic.AddUint64(&storage.stats.MetaLoadedObjects, 1)
 	return nil
 }
 
@@ -159,17 +151,12 @@ func (storage *FSStorage) DeleteObject(obj *Object) error {
 		return err
 	}
 
-	atomic.AddUint64(&storage.stats.DeletedObjects, 1)
 	return nil
 }
 
 //GetStorageType return storage type
 func (storage *FSStorage) GetStorageType() Type {
 	return TypeFS
-}
-
-func (storage *FSStorage) GetStats() Stats {
-	return storage.stats
 }
 
 //etagFromMetadata generate ETAG from FS attributes. Useful for further use

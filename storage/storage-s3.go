@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 )
 
@@ -25,7 +24,6 @@ type S3Storage struct {
 	keysPerReq    int64
 	retryCnt      uint
 	retryInterval time.Duration
-	stats         Stats
 	ctx           context.Context
 	listMarker    *string
 }
@@ -65,7 +63,6 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
-		stats:         Stats{},
 		ctx:           context.TODO(),
 	}
 
@@ -80,7 +77,6 @@ func (storage *S3Storage) WithContext(ctx context.Context) {
 func (storage *S3Storage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
-			atomic.AddUint64(&storage.stats.ListedObjects, 1)
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
 			output <- &Object{Key: &key, ETag: o.ETag, Mtime: o.LastModified}
 		}
@@ -103,7 +99,7 @@ func (storage *S3Storage) List(output chan<- *Object) error {
 			time.Sleep(storage.retryInterval)
 			continue
 		} else if (err != nil) && (i == storage.retryCnt) {
-			Log.Errorf("S3 listing failed with error: %s", err)
+			Log.Debugf("S3 listing failed with error: %s", err)
 			return err
 		} else {
 			Log.Debugf("Listing bucket finished")
@@ -137,7 +133,6 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 			return err
 		}
 
-		atomic.AddUint64(&storage.stats.UploadedObjects, 1)
 		return nil
 	}
 }
@@ -178,7 +173,6 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
 
-		atomic.AddUint64(&storage.stats.DataLoadedObjects, 1)
 		return nil
 	}
 }
@@ -209,7 +203,6 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
 
-		atomic.AddUint64(&storage.stats.MetaLoadedObjects, 1)
 		return nil
 	}
 }
@@ -230,7 +223,6 @@ func (storage *S3Storage) DeleteObject(obj *Object) error {
 			return err
 		}
 
-		atomic.AddUint64(&storage.stats.DeletedObjects, 1)
 		return nil
 	}
 }
@@ -238,8 +230,4 @@ func (storage *S3Storage) DeleteObject(obj *Object) error {
 //GetStorageType return storage type
 func (storage *S3Storage) GetStorageType() Type {
 	return TypeS3
-}
-
-func (storage *S3Storage) GetStats() Stats {
-	return storage.stats
 }

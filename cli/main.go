@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gosuri/uilive"
 	"github.com/larrabee/s3sync/pipeline"
+	"github.com/larrabee/s3sync/pipeline/collection"
 	"github.com/larrabee/s3sync/storage"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -19,7 +20,6 @@ import (
 var cli argsParsed
 var log = logrus.New()
 var live *uilive.Writer
-var filteredCnt uint64 = 0
 
 const (
 	permDir         os.FileMode = 0750
@@ -39,7 +39,7 @@ func init() {
 		live = uilive.New()
 		live.Start()
 		log.SetOutput(live.Bypass())
-		log.SetFormatter(&logrus.TextFormatter{ForceColors:true})
+		log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	}
 	if cli.Debug {
 		log.SetLevel(logrus.DebugLevel)
@@ -87,35 +87,31 @@ func main() {
 	syncGroup.SetSource(sourceStorage)
 	syncGroup.SetTarget(targetStorage)
 
-	log.Info("Starting sync\n")
-
 	syncGroup.AddPipeStep(pipeline.Step{
-		Name:     "ListSource",
-		Fn:       ListSourceStorage,
-		ChanSize: cli.Workers,
-		AddWorkers: 1,
+		Name:       "ListSource",
+		Fn:         collection.ListSourceStorage,
+		AddWorkers: 0,
 	})
 
 	if len(cli.FilterExt) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjByExt",
-			Fn:       FilterObjectsByExt,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjByExt",
+			Fn:     collection.FilterObjectsByExt,
+			Config: cli.FilterExt,
 		})
 	}
 
 	if len(cli.FilterExtNot) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjByExtNot",
-			Fn:       FilterObjectsByExtNot,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjByExtNot",
+			Fn:     collection.FilterObjectsByExtNot,
+			Config: cli.FilterExtNot,
 		})
 	}
 
 	loadObjMetaStep := pipeline.Step{
 		Name:       "LoadObjMeta",
-		Fn:         ListSourceStorage,
-		ChanSize:   cli.Workers,
+		Fn:         collection.LoadObjectMeta,
 		AddWorkers: cli.Workers,
 	}
 	if (cli.Source.Type == storage.TypeFS) && ((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0)) {
@@ -126,86 +122,72 @@ func main() {
 
 	if cli.FilterMtimeAfter > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjectsByMtimeAfter",
-			Fn:       FilterObjectsByMtimeAfter,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjectsByMtimeAfter",
+			Fn:     collection.FilterObjectsByMtimeAfter,
+			Config: cli.FilterMtimeAfter,
 		})
 	}
 
 	if cli.FilterMtimeBefore > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjectsByMtimeBefore",
-			Fn:       FilterObjectsByMtimeBefore,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjectsByMtimeBefore",
+			Fn:     collection.FilterObjectsByMtimeBefore,
+			Config: cli.FilterMtimeBefore,
 		})
 	}
 
 	if len(cli.FilterCT) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjByCT",
-			Fn:       FilterObjectsByCT,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjByCT",
+			Fn:     collection.FilterObjectsByCT,
+			Config: cli.FilterCT,
 		})
 	}
 
 	if len(cli.FilterCTNot) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "FilterObjByCTNot",
-			Fn:       FilterObjectsByCTNot,
-			ChanSize: cli.Workers,
+			Name:   "FilterObjByCTNot",
+			Fn:     collection.FilterObjectsByCTNot,
+			Config: cli.FilterCTNot,
 		})
 	}
 
 	syncGroup.AddPipeStep(pipeline.Step{
-		Name:     "ACLUpdater",
-		Fn:       ACLUpdater,
-		ChanSize: cli.Workers,
+		Name:   "ACLUpdater",
+		Fn:     collection.ACLUpdater,
+		Config: cli.S3Acl,
 	})
-
-	if cli.SyncLog {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name:     "Logger",
-			Fn:       Logger,
-			ChanSize: cli.Workers,
-		})
-	}
 
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:       "LoadObjData",
-		Fn:         LoadObjectData,
-		ChanSize:   cli.Workers,
+		Fn:         collection.LoadObjectData,
 		AddWorkers: cli.Workers,
 	})
 
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:       "UploadObj",
-		Fn:         UploadObjectData,
-		ChanSize:   cli.Workers,
+		Fn:         collection.UploadObjectData,
 		AddWorkers: cli.Workers,
 	})
 
+	if cli.SyncLog {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "Logger",
+			Fn:     collection.Logger,
+			Config: log,
+		})
+	}
+
 	syncGroup.AddPipeStep(pipeline.Step{
-		Name:       "Terminator",
-		Fn:         Terminator,
-		ChanSize:   cli.Workers,
+		Name: "Terminator",
+		Fn:   collection.Terminator,
 	})
 
+	log.Info("Starting sync\n")
 	syncStartTime := time.Now()
 	syncGroup.Run()
 
 	progressChanQ := make(chan bool)
-	getStatsStr := func() string {
-		dur := time.Since(syncStartTime).Seconds()
-		sStats := syncGroup.Source.GetStats()
-		tStats := syncGroup.Target.GetStats()
-		str := fmt.Sprintf("SOURCE: Listed: %d (%.f obj/sec); MetaLoaded: %d; DataLoaded: %d;\n",
-			sStats.ListedObjects, float64(sStats.ListedObjects)/dur, sStats.MetaLoadedObjects, sStats.DataLoadedObjects)
-		str += fmt.Sprintf("FILTERED: Total: %d;\n", filteredCnt)
-		str += fmt.Sprintf("TARGET: Uploaded: %d (%.f obj/sec);\n", tStats.UploadedObjects, float64(tStats.UploadedObjects)/dur)
-		str += fmt.Sprintf("TIME: Duration: %.f;\n", dur)
-		return str
-	}
-
 	if cli.ShowProgress {
 		go func(quit <-chan bool) {
 			for {
@@ -213,8 +195,10 @@ func main() {
 				case <-quit:
 					return
 				default:
-					msg := getStatsStr()
-					_, _ = fmt.Fprint(live, msg)
+					dur := time.Since(syncStartTime).Seconds()
+					for _, val := range syncGroup.GetStepsInfo() {
+						_, _ = fmt.Fprintf(live,"%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+					}
 					time.Sleep(time.Second)
 				}
 			}
@@ -223,28 +207,26 @@ func main() {
 
 	syncStatus := 0
 
-	WaitLoop:
+WaitLoop:
 	for {
 		select {
 		case recSignal := <-sysStopChan:
 			log.Warnf("Receive signal: %s, terminating", recSignal.String())
 			cancel()
-		case err := <- syncGroup.ErrChan():
+			syncStatus = 2
+			break WaitLoop
+		case err := <-syncGroup.ErrChan():
 			if err == nil {
 				log.Infof("Sync Done")
 				break WaitLoop
 			}
-			if cli.OnFail == onFailSkip {
+			if cli.OnFail == onFailSkip && err.(*pipeline.PipelineError).Err != context.Canceled {
 				log.Errorf("Sync err: %s, skipping", err)
 				continue WaitLoop
 			}
 			aerr, ok := err.(*pipeline.PipelineError).Err.(awserr.Error)
 			if (cli.OnFail == onFailSkipMissing) && ok && ((aerr.Code() == s3.ErrCodeNoSuchKey) || (aerr.Code() == "NotFound")) {
 				log.Infof("Skip missing object, err: %s", aerr.Error())
-				continue WaitLoop
-			}
-
-			if err.(*pipeline.PipelineError).Err == context.Canceled {
 				continue WaitLoop
 			}
 
@@ -259,8 +241,10 @@ func main() {
 		progressChanQ <- true
 	}
 
-	msg := getStatsStr()
-	log.Infof("Stats: %s\n", msg)
+	for _, val := range syncGroup.GetStepsInfo() {
+		dur := time.Since(syncStartTime).Seconds()
+		log.Infof("%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+	}
 
 	log.Exit(syncStatus)
 }

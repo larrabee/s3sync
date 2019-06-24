@@ -13,18 +13,6 @@ func init() {
 	storage.Log = Log
 }
 
-type PipelineFn func(group *Group, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error)
-
-type Step struct {
-	Name       string
-	Fn         PipelineFn
-	ChanSize   uint
-	AddWorkers uint
-	dataChan   chan *storage.Object
-	errChan    chan error
-	workerWg   *sync.WaitGroup
-}
-
 type Group struct {
 	Source  storage.Storage
 	Target  storage.Storage
@@ -59,13 +47,31 @@ func (group *Group) SetTarget(st storage.Storage) {
 func (group *Group) AddPipeStep(step Step) {
 	step.errChan = make(chan error)
 	step.workerWg = &sync.WaitGroup{}
-	step.dataChan = make(chan *storage.Object, step.ChanSize)
+	step.intOutChan = make(chan *storage.Object)
+	step.intInChan = make(chan *storage.Object)
+	step.outChan = make(chan *storage.Object)
 	group.steps = append(group.steps, step)
 }
 
-//func (group *Group) ResetPipeline(fn PipelineFn) {
-//	group.steps = make([]Step, 0)
-//}
+func (group *Group) GetStepsInfo() []StepInfo {
+	res := make([]StepInfo, len(group.steps))
+	for i := range group.steps {
+		res[i] = StepInfo{Stats: group.steps[i].stats,
+			Name:   group.steps[i].Name,
+			Num:    i,
+			Config: group.steps[i].Config,
+		}
+	}
+	return res
+}
+
+func (group *Group) GetStepInfo(stepNum int) StepInfo {
+	return StepInfo{Stats: group.steps[stepNum].stats,
+		Name:   group.steps[stepNum].Name,
+		Num:    stepNum,
+		Config: group.steps[stepNum].Config,
+	}
+}
 
 func (group *Group) Run() {
 	for i := 0; i < len(group.steps); i++ {
@@ -74,10 +80,29 @@ func (group *Group) Run() {
 		go func(i int) {
 			for e := range group.steps[i].errChan {
 				Log.Debugf("Recv pipeline err: %s", e)
-				group.errChan <- &PipelineError{StepName: group.steps[i].Name, Err: e}
+				group.steps[i].stats.Error += 1
+				group.errChan <- &PipelineError{StepName: group.steps[i].Name, StepNum: i, Err: e}
 			}
 			group.errWg.Done()
 		}(i)
+
+		go func(i int) {
+			for obj := range group.steps[i].intOutChan {
+				group.steps[i].stats.Output += 1
+				group.steps[i].outChan <- obj
+			}
+			close(group.steps[i].outChan)
+		}(i)
+
+		if i>0 {
+			go func(i int) {
+				for obj := range group.steps[i-1].outChan {
+					group.steps[i].stats.Input += 1
+					group.steps[i].intInChan <- obj
+				}
+				close(group.steps[i].intInChan)
+			}(i)
+		}
 
 		go func(i int) {
 			for w := uint(0); w <= group.steps[i].AddWorkers; w++ {
@@ -85,18 +110,16 @@ func (group *Group) Run() {
 				go func(i int) {
 					defer group.steps[i].workerWg.Done()
 					if i == 0 {
-						group.steps[i].Fn(group, nil, group.steps[i].dataChan, group.steps[i].errChan)
+						group.steps[i].Fn(group, i, nil, group.steps[i].intOutChan, group.steps[i].errChan)
 					} else {
-						group.steps[i].Fn(group, group.steps[i-1].dataChan, group.steps[i].dataChan, group.steps[i].errChan)
+						group.steps[i].Fn(group, i, group.steps[i].intInChan, group.steps[i].intOutChan, group.steps[i].errChan)
 					}
 				}(i)
-
 			}
 
 			group.steps[i].workerWg.Wait()
 			Log.Debugf("Pipeline step: %s finished", group.steps[i].Name)
-			Log.Debugf("Close datachan for step %s, %d", group.steps[i].Name, i)
-			close(group.steps[i].dataChan)
+			close(group.steps[i].intOutChan)
 			close(group.steps[i].errChan)
 			if i+1 == len(group.steps) {
 				Log.Debugf("All pipeline steps finished")
