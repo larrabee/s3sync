@@ -72,15 +72,15 @@ Options:
 
 Examples:  
 * Sync Amazon S3 bucket to FS:  
-```s3sync --sk KEY --ss SECRET -w 128 s3://shared /opt/backups/s3/```
+```s3sync --sk KEY --ss SECRET -w 128 s3://shared fs:///opt/backups/s3/```
 * Sync S3 bucket with custom endpoint to FS:  
-```s3sync --sk KEY --ss SECRET --se "http://127.0.0.1:7484" -w 128 s3://shared /opt/backups/s3/```
+```s3sync --sk KEY --ss SECRET --se "http://127.0.0.1:7484" -w 128 s3://shared fs:///opt/backups/s3/```
 * Sync directory (/test) from Amazon S3 bucket to FS:  
-```s3sync --sk KEY --ss SECRET -w 128 s3://shared/test /opt/backups/s3/test/```
+```s3sync --sk KEY --ss SECRET -w 128 s3://shared/test fs:///opt/backups/s3/test/```
 * Sync directory from local FS to Amazon S3:  
-```s3sync --tk KEY --ts SECRET -w 128 /opt/backups/s3/ s3://shared```
+```s3sync --tk KEY --ts SECRET -w 128 fs:///opt/backups/s3/ s3://shared```
 * Sync directory from local FS to Amazon S3 bucket directory:  
-```s3sync --tk KEY --ts SECRET -w 128 /opt/backups/s3/test/ s3://shared/test_new/```
+```s3sync --tk KEY --ts SECRET -w 128 fs:///opt/backups/s3/test/ s3://shared/test_new/```
 * Sync one Amazon bucket to another Amazon bucket:  
 ```s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared s3://shared_new```
 * Sync S3 bucket with custom endpoint to another bucket with custom endpoint:  
@@ -88,7 +88,7 @@ Examples:
 * Sync one Amazon bucket directory to another Amazon bucket:  
 ```s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared/test/ s3://shared_new```
 
-SOURCE and TARGET should be a directory. Syncing of single file are not supported (This will not work `s3sync --sk KEY --ss SECRET s3://shared/megafile.zip /opt/backups/s3/`)  
+SOURCE and TARGET should be a directory. Syncing of single file are not supported (This will not work `s3sync --sk KEY --ss SECRET s3://shared/megafile.zip fs:///opt/backups/s3/`)  
 
 You can use filters.   
 * Timestamp filter (`--filter-after-mtime` arg) syncing only files, that has been changed after specified timestamp. Its useful for diff backups.  
