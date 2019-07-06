@@ -80,8 +80,8 @@ func main() {
 	syncGroup.SetTarget(targetStorage)
 
 	syncGroup.AddPipeStep(pipeline.Step{
-		Name:       "ListSource",
-		Fn:         collection.ListSourceStorage,
+		Name:     "ListSource",
+		Fn:       collection.ListSourceStorage,
 		ChanSize: cli.ListBuffer,
 	})
 
