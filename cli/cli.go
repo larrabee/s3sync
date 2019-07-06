@@ -77,7 +77,7 @@ type args struct {
 	ShowProgress bool   `arg:"--sync-progress,-p" help:"Show sync progress"`
 	OnFail       string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing"`
 	DisableHTTP2 bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
-	ListBuffer      uint   `arg:"--list-buffer" help:"Size of list buffer"`
+	ListBuffer   uint   `arg:"--list-buffer" help:"Size of list buffer"`
 }
 
 //VersionId return program version string on human format
@@ -181,7 +181,7 @@ func parseConn(cStr string) (conn connect, err error) {
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	case "fs":
 		conn.Type = storage.TypeFS
-		conn.Path = u.Host + u.Path
+		conn.Path = strings.TrimPrefix(cStr, "fs://")
 	default:
 		conn.Type = storage.TypeFS
 		conn.Path = cStr
