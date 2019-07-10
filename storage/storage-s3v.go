@@ -9,7 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"io/ioutil"
+	"github.com/larrabee/ratelimit"
+	"io"
 	"net/url"
 	"path/filepath"
 	"time"
@@ -26,6 +27,7 @@ type S3vStorage struct {
 	retryInterval time.Duration
 	ctx           context.Context
 	listMarker    *string
+	rlBucket      ratelimit.Bucket
 }
 
 //NewS3Storage return new configured S3 storage
@@ -64,6 +66,7 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
 		ctx:           context.TODO(),
+		rlBucket:      ratelimit.NewFakeBucket(),
 	}
 
 	return &storage
@@ -71,6 +74,15 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 
 func (storage *S3vStorage) WithContext(ctx context.Context) {
 	storage.ctx = ctx
+}
+
+func (storage *S3vStorage) WithRateLimit(limit int) error {
+	bucket, err := ratelimit.NewBucketWithRate(float64(limit), int64(limit))
+	if err != nil {
+		return err
+	}
+	storage.rlBucket = bucket
+	return nil
 }
 
 //List S3 bucket and send founded objects to chan
@@ -109,10 +121,13 @@ func (storage *S3vStorage) List(output chan<- *Object) error {
 
 //PutObject to bucket
 func (storage *S3vStorage) PutObject(obj *Object) error {
+	objReader := bytes.NewReader(*obj.Content)
+	rlReader := ratelimit.NewReadSeeker(objReader, storage.rlBucket)
+
 	input := &s3.PutObjectInput{
 		Bucket:             storage.awsBucket,
 		Key:                aws.String(filepath.Join(storage.prefix, *obj.Key)),
-		Body:               bytes.NewReader(*obj.Content),
+		Body:               rlReader,
 		ContentType:        obj.ContentType,
 		ContentDisposition: obj.ContentDisposition,
 		ContentEncoding:    obj.ContentEncoding,
@@ -154,7 +169,8 @@ func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 			return err
 		}
 
-		data, err := ioutil.ReadAll(result.Body)
+		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
+		_, err = io.Copy(ratelimit.NewWriter(buf, storage.rlBucket), result.Body)
 		if (err != nil) && (i < storage.retryCnt) {
 			Log.Debugf("S3 obj content downloading failed with error: %s", err)
 			time.Sleep(storage.retryInterval)
@@ -163,6 +179,7 @@ func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 			return err
 		}
 
+		data := buf.Bytes()
 		obj.Content = &data
 		obj.ContentType = result.ContentType
 		obj.ContentDisposition = result.ContentDisposition

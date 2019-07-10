@@ -10,6 +10,9 @@
     * S3 to S3
 * Retrying on errors
 * Live statistics
+* Rate limiting by objects
+* Rate limiting by bandwidth
+* Flexible filters by extension, Content-Type and object mtime
 
 Key future: very high speed.  
 Avg listing speed around 5k objects/sec for S3.  
@@ -65,6 +68,13 @@ Options:
   --on-fail ON-FAIL, -f ON-FAIL
                          Action on failed. Possible values: fatal, skip, skipmissing [default: fatal]
   --disable-http2        Disable HTTP2 for http client
+  --list-buffer LIST-BUFFER
+                         Size of list buffer [default: 1000]
+  --ratelimit-objects RATELIMIT-OBJECTS
+                         Rate limit objects per second
+  --ratelimit-bandwidth RATELIMIT-BANDWIDTH
+                         Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G
+
   --help, -h             display this help and exit
   --version              display version and exit
 
