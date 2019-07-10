@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var (
@@ -28,12 +29,13 @@ const (
 
 type argsParsed struct {
 	args
-	Source          connect
-	Target          connect
-	S3RetryInterval time.Duration
-	OnFail          onFailAction
-	FSFilePerm      os.FileMode
-	FSDirPerm       os.FileMode
+	Source             connect
+	Target             connect
+	S3RetryInterval    time.Duration
+	OnFail             onFailAction
+	FSFilePerm         os.FileMode
+	FSDirPerm          os.FileMode
+	RateLimitBandwidth int
 }
 
 type connect struct {
@@ -78,6 +80,9 @@ type args struct {
 	OnFail       string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing"`
 	DisableHTTP2 bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 	ListBuffer   uint   `arg:"--list-buffer" help:"Size of list buffer"`
+	// Rate Limit
+	RateLimitObjPerSec uint   `arg:"--ratelimit-objects" help:"Rate limit objects per second"`
+	RateLimitBandwidth string `arg:"--ratelimit-bandwidth" help:"Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G"`
 }
 
 //VersionId return program version string on human format
@@ -104,6 +109,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	rawCli.FSDirPerm = "0755"
 	rawCli.FSFilePerm = "0644"
 	rawCli.ListBuffer = 1000
+	rawCli.RateLimitObjPerSec = 0
 
 	p := arg.MustParse(&rawCli)
 	cli.args = rawCli
@@ -136,6 +142,12 @@ func GetCliArgs() (cli argsParsed, err error) {
 		cli.OnFail = onFailSkipMissing
 	default:
 		p.Fail("--on-fail must be one of \"fatal, skip, skipmissing\"")
+	}
+
+	if rate, ok := parseBandwith(cli.args.RateLimitBandwidth); ok {
+		cli.RateLimitBandwidth = rate
+	} else {
+		p.Fail("Invalid value of (--ratelimit-bandwidth) arg")
 	}
 
 	cli.S3RetryInterval = time.Duration(cli.args.S3RetryInterval) * time.Second
@@ -187,4 +199,39 @@ func parseConn(cStr string) (conn connect, err error) {
 		conn.Path = cStr
 	}
 	return
+}
+
+func parseBandwith(s string) (int, bool) {
+	if s == "" {
+		return 0, true
+	}
+	s = strings.TrimSpace(s)
+	digits := ""
+	multiplier := 1
+
+	for _, r := range s {
+		if unicode.IsDigit(r) {
+			digits += string(r)
+			continue
+		}
+		if unicode.IsSpace(r) {
+			continue
+		}
+		switch r {
+		case 'K':
+			multiplier = 1024
+		case 'M':
+			multiplier = 1024 * 1024
+		case 'G':
+			multiplier = 1024 * 1024 * 1024
+		default:
+			return 0, false
+		}
+	}
+	rate, err := strconv.Atoi(digits)
+	if err != nil {
+		return 0, false
+	}
+
+	return rate * multiplier, true
 }

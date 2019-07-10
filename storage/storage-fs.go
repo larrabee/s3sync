@@ -7,7 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"github.com/karrick/godirwalk"
-	"io/ioutil"
+	"github.com/larrabee/ratelimit"
+	"io"
 	"mime"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ type FSStorage struct {
 	dirPerm  os.FileMode
 	bufSize  int
 	ctx      context.Context
+	rlBucket ratelimit.Bucket
 }
 
 //NewFSStorage return new configured FS storage
@@ -30,6 +32,7 @@ func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int) *FSSto
 		Dir:      filepath.Clean(dir) + "/",
 		filePerm: filePerm,
 		dirPerm:  dirPerm,
+		rlBucket: ratelimit.NewFakeBucket(),
 	}
 	if bufSize < godirwalk.MinimumScratchBufferSize {
 		storage.bufSize = godirwalk.DefaultScratchBufferSize
@@ -41,6 +44,15 @@ func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int) *FSSto
 
 func (storage *FSStorage) WithContext(ctx context.Context) {
 	storage.ctx = ctx
+}
+
+func (storage *FSStorage) WithRateLimit(limit int) error {
+	bucket, err := ratelimit.NewBucketWithRate(float64(limit), int64(limit))
+	if err != nil {
+		return err
+	}
+	storage.rlBucket = bucket
+	return nil
 }
 
 //List FS and send founded objects to chan
@@ -91,8 +103,15 @@ func (storage *FSStorage) PutObject(obj *Object) error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(destPath, *obj.Content, storage.filePerm)
+	f, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, storage.filePerm)
 	if err != nil {
+		return err
+	}
+	objReader := bytes.NewReader(*obj.Content)
+	if _, err := io.Copy(f, ratelimit.NewReader(objReader, storage.rlBucket)); err != nil {
+		return err
+	}
+	if err := f.Close(); err == nil {
 		return err
 	}
 
@@ -102,15 +121,23 @@ func (storage *FSStorage) PutObject(obj *Object) error {
 //GetObjectContent read object content from FS
 func (storage *FSStorage) GetObjectContent(obj *Object) error {
 	destPath := filepath.Join(storage.Dir, *obj.Key)
-	data, err := ioutil.ReadFile(destPath)
+	f, err := os.Open(destPath)
+	if err != nil {
+		return err
+	}
+	fileInfo, err := f.Stat()
 	if err != nil {
 		return err
 	}
 
-	fileInfo, err := os.Stat(destPath)
-	if err != nil {
+	buf := bytes.NewBuffer(make([]byte, 0, fileInfo.Size()))
+	if _, err := io.Copy(buf, ratelimit.NewReader(f, storage.rlBucket)); err != nil {
 		return err
 	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	data := buf.Bytes()
 
 	contentType := mime.TypeByExtension(filepath.Ext(destPath))
 	ETag := etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())

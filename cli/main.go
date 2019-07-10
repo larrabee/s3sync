@@ -76,6 +76,13 @@ func main() {
 
 	sourceStorage.WithContext(ctx)
 	targetStorage.WithContext(ctx)
+	if cli.RateLimitBandwidth > 0 {
+		err := sourceStorage.WithRateLimit(cli.RateLimitBandwidth)
+		if err != nil {
+			log.Fatalf("Bandwidth limit error: %s", err)
+		}
+	}
+
 	syncGroup.SetSource(sourceStorage)
 	syncGroup.SetTarget(targetStorage)
 
@@ -172,6 +179,14 @@ func main() {
 		})
 	}
 
+	if cli.RateLimitObjPerSec > 0 {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "RateLimit",
+			Fn:     collection.PipelineRateLimit,
+			Config: cli.RateLimitObjPerSec,
+		})
+	}
+
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name: "Terminator",
 		Fn:   collection.Terminator,
@@ -193,6 +208,7 @@ func main() {
 					for _, val := range syncGroup.GetStepsInfo() {
 						_, _ = fmt.Fprintf(live, "%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
 					}
+					_, _ = fmt.Fprintf(live,"Duration: %s\n", time.Since(syncStartTime).String())
 					time.Sleep(time.Second)
 				}
 			}
@@ -235,10 +251,14 @@ WaitLoop:
 		progressChanQ <- true
 	}
 
-	for _, val := range syncGroup.GetStepsInfo() {
+	{
 		dur := time.Since(syncStartTime).Seconds()
-		log.Infof("%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+		for _, val := range syncGroup.GetStepsInfo() {
+			log.Infof("%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+		}
+		log.Infof("Duration: %s", time.Since(syncStartTime).String())
 	}
+
 
 	log.Exit(syncStatus)
 }

@@ -35,6 +35,7 @@ type Object struct {
 //Storage interface
 type Storage interface {
 	WithContext(ctx context.Context)
+	WithRateLimit(limit int) error
 	List(ch chan<- *Object) error
 	PutObject(object *Object) error
 	GetObjectContent(obj *Object) error
