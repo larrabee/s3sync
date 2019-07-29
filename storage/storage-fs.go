@@ -245,4 +245,3 @@ func (storage *FSStorage) DeleteObject(obj *Object) error {
 func (storage *FSStorage) GetStorageType() Type {
 	return TypeFS
 }
-
