@@ -63,8 +63,9 @@ type args struct {
 	S3Acl           string `arg:"--s3-acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	S3KeysPerReq    int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
 	// FS config
-	FSFilePerm string `arg:"--fs-file-perm" help:"File permissions"`
-	FSDirPerm  string `arg:"--fs-dir-perm" help:"Dir permissions"`
+	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
+	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions"`
+	FSDisableXattr bool   `arg:"--fs-disable-xattr" help:"Disable FS xattr for storing metadata"`
 	// Filters
 	FilterExt         []string `arg:"--filter-ext,separate" help:"Sync only files with given extensions"`
 	FilterExtNot      []string `arg:"--filter-not-ext,separate" help:"Skip files with given extensions"`

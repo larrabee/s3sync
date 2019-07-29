@@ -62,7 +62,7 @@ func main() {
 			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
-		sourceStorage = storage.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, fsListBufSize)
+		sourceStorage = storage.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, fsListBufSize, !cli.FSDisableXattr)
 	}
 
 	switch cli.Target.Type {
@@ -71,7 +71,7 @@ func main() {
 			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
-		targetStorage = storage.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0)
+		targetStorage = storage.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr)
 	}
 
 	sourceStorage.WithContext(ctx)
@@ -208,7 +208,7 @@ func main() {
 					for _, val := range syncGroup.GetStepsInfo() {
 						_, _ = fmt.Fprintf(live, "%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
 					}
-					_, _ = fmt.Fprintf(live,"Duration: %s\n", time.Since(syncStartTime).String())
+					_, _ = fmt.Fprintf(live, "Duration: %s\n", time.Since(syncStartTime).String())
 					time.Sleep(time.Second)
 				}
 			}
@@ -258,7 +258,6 @@ WaitLoop:
 		}
 		log.Infof("Duration: %s", time.Since(syncStartTime).String())
 	}
-
 
 	log.Exit(syncStatus)
 }
