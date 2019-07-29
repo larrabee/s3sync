@@ -113,7 +113,7 @@ func main() {
 		Fn:         collection.LoadObjectMeta,
 		AddWorkers: cli.Workers,
 	}
-	if (cli.Source.Type == storage.TypeFS) && ((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0)) {
+	if (cli.Source.Type == storage.TypeFS) && ((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0) || cli.FilterModified) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
 	} else if (len(cli.FilterCT) > 0) || (len(cli.FilterCTNot) > 0) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
@@ -148,6 +148,13 @@ func main() {
 			Name:   "FilterObjByCTNot",
 			Fn:     collection.FilterObjectsByCTNot,
 			Config: cli.FilterCTNot,
+		})
+	}
+
+	if cli.FilterModified {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsModified",
+			Fn:   collection.FilterObjectsModified,
 		})
 	}
 

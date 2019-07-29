@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -90,7 +91,7 @@ func (storage *S3Storage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
-			output <- &Object{Key: &key, ETag: o.ETag, Mtime: o.LastModified}
+			output <- &Object{Key: &key, ETag: strongEtag(o.ETag), Mtime: o.LastModified}
 		}
 		storage.listMarker = p.Marker
 		return !lastPage // continue paging
@@ -184,7 +185,7 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 		obj.ContentDisposition = result.ContentDisposition
 		obj.ContentEncoding = result.ContentEncoding
 		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = result.ETag
+		obj.ETag = strongEtag(result.ETag)
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
@@ -214,7 +215,7 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 		obj.ContentDisposition = result.ContentDisposition
 		obj.ContentEncoding = result.ContentEncoding
 		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = result.ETag
+		obj.ETag = strongEtag(result.ETag)
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
@@ -246,4 +247,9 @@ func (storage *S3Storage) DeleteObject(obj *Object) error {
 //GetStorageType return storage type
 func (storage *S3Storage) GetStorageType() Type {
 	return TypeS3
+}
+
+func strongEtag(s *string) *string {
+	etag := strings.TrimPrefix(*s, "W/")
+	return &etag
 }

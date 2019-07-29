@@ -73,6 +73,7 @@ type args struct {
 	FilterCTNot       []string `arg:"--filter-not-ct,separate" help:"Skip files with given Content-Type"`
 	FilterMtimeAfter  int64    `arg:"--filter-after-mtime" help:"Sync only files modified after given unix timestamp"`
 	FilterMtimeBefore int64    `arg:"--filter-before-mtime" help:"Sync only files modified before given unix timestamp"`
+	FilterModified    bool     `arg:"--filter-modified" help:"Sync only modified files"`
 	// Misc
 	Workers      uint   `arg:"-w" help:"Workers count"`
 	Debug        bool   `arg:"-d" help:"Show debug logging"`
@@ -176,6 +177,10 @@ func GetCliArgs() (cli argsParsed, err error) {
 
 	if cli.DisableHTTP2 {
 		_ = os.Setenv("GODEBUG", os.Getenv("GODEBUG")+"http2client=0")
+	}
+
+	if cli.FilterModified && cli.FSDisableXattr {
+		p.Fail("Filter modified files (--filter-modified) required xattr")
 	}
 
 	return
