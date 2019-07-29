@@ -3,17 +3,16 @@ package storage
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
-	"encoding/binary"
-	"encoding/hex"
+	"encoding/json"
 	"github.com/karrick/godirwalk"
 	"github.com/larrabee/ratelimit"
+	"github.com/pkg/xattr"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"syscall"
 )
 
 //FSStorage configuration
@@ -22,16 +21,18 @@ type FSStorage struct {
 	filePerm os.FileMode
 	dirPerm  os.FileMode
 	bufSize  int
+	xattr    bool
 	ctx      context.Context
 	rlBucket ratelimit.Bucket
 }
 
 //NewFSStorage return new configured FS storage
-func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int) *FSStorage {
+func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool) *FSStorage {
 	storage := FSStorage{
 		Dir:      filepath.Clean(dir) + "/",
 		filePerm: filePerm,
 		dirPerm:  dirPerm,
+		xattr:    extendedMeta,
 		rlBucket: ratelimit.NewFakeBucket(),
 	}
 	if bufSize < godirwalk.MinimumScratchBufferSize {
@@ -107,12 +108,22 @@ func (storage *FSStorage) PutObject(obj *Object) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
+
 	objReader := bytes.NewReader(*obj.Content)
 	if _, err := io.Copy(f, ratelimit.NewReader(objReader, storage.rlBucket)); err != nil {
 		return err
 	}
-	if err := f.Close(); err == nil {
-		return err
+
+	if storage.xattr {
+		data, err := json.Marshal(obj)
+		if err != nil {
+			return err
+		}
+
+		if err := xattr.FSet(f, "user.s3sync.meta", data); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -125,6 +136,8 @@ func (storage *FSStorage) GetObjectContent(obj *Object) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
+
 	fileInfo, err := f.Stat()
 	if err != nil {
 		return err
@@ -134,19 +147,39 @@ func (storage *FSStorage) GetObjectContent(obj *Object) error {
 	if _, err := io.Copy(buf, ratelimit.NewReader(f, storage.rlBucket)); err != nil {
 		return err
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
+
 	data := buf.Bytes()
 
-	contentType := mime.TypeByExtension(filepath.Ext(destPath))
-	ETag := etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
-	Mtime := fileInfo.ModTime()
-
 	obj.Content = &data
-	obj.ETag = &ETag
-	obj.ContentType = &contentType
-	obj.Mtime = &Mtime
+
+	if storage.xattr {
+		if data, err := xattr.FGet(f, "user.s3sync.meta"); err == nil {
+			err := json.Unmarshal(data, obj)
+			if err != nil {
+				return err
+			}
+		} else {
+			switch err.(type) {
+			case *xattr.Error:
+				if err.(*xattr.Error).Err == syscall.ENODATA {
+					contentType := mime.TypeByExtension(filepath.Ext(destPath))
+					Mtime := fileInfo.ModTime()
+					obj.ContentType = &contentType
+					obj.Mtime = &Mtime
+					break
+				} else {
+					return err
+				}
+			default:
+				return err
+			}
+		}
+	} else {
+		contentType := mime.TypeByExtension(filepath.Ext(destPath))
+		Mtime := fileInfo.ModTime()
+		obj.ContentType = &contentType
+		obj.Mtime = &Mtime
+	}
 
 	return nil
 }
@@ -154,18 +187,45 @@ func (storage *FSStorage) GetObjectContent(obj *Object) error {
 //GetObjectMeta update object metadata from FS
 func (storage *FSStorage) GetObjectMeta(obj *Object) error {
 	destPath := filepath.Join(storage.Dir, *obj.Key)
-	fileInfo, err := os.Stat(destPath)
+	f, err := os.Open(destPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fileInfo, err := f.Stat()
 	if err != nil {
 		return err
 	}
 
-	contentType := mime.TypeByExtension(filepath.Ext(destPath))
-	ETag := etagFromMetadata(fileInfo.ModTime(), fileInfo.Size())
-	Mtime := fileInfo.ModTime()
-
-	obj.ETag = &ETag
-	obj.ContentType = &contentType
-	obj.Mtime = &Mtime
+	if storage.xattr {
+		if data, err := xattr.FGet(f, "user.s3sync.meta"); err == nil {
+			err := json.Unmarshal(data, obj)
+			if err != nil {
+				return err
+			}
+		} else {
+			switch err.(type) {
+			case *xattr.Error:
+				if err.(*xattr.Error).Err == syscall.ENODATA {
+					contentType := mime.TypeByExtension(filepath.Ext(destPath))
+					Mtime := fileInfo.ModTime()
+					obj.ContentType = &contentType
+					obj.Mtime = &Mtime
+					break
+				} else {
+					return err
+				}
+			default:
+				return err
+			}
+		}
+	} else {
+		contentType := mime.TypeByExtension(filepath.Ext(destPath))
+		Mtime := fileInfo.ModTime()
+		obj.ContentType = &contentType
+		obj.Mtime = &Mtime
+	}
 
 	return nil
 }
@@ -186,20 +246,3 @@ func (storage *FSStorage) GetStorageType() Type {
 	return TypeFS
 }
 
-//etagFromMetadata generate ETAG from FS attributes. Useful for further use
-func etagFromMetadata(mtime time.Time, size int64) string {
-	timeByte := byte(mtime.Unix())
-	sizeByte := byte(size)
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, timeByte)
-	if err != nil {
-		return ""
-	}
-	err = binary.Write(buf, binary.LittleEndian, sizeByte)
-	if err != nil {
-		return ""
-	}
-	hasher := md5.New()
-	hasher.Write(buf.Bytes())
-	return hex.EncodeToString(hasher.Sum(nil))
-}

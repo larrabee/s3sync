@@ -18,18 +18,18 @@ const (
 
 //Object contain content and metadata of S3 object
 type Object struct {
-	Key                *string
-	ETag               *string
-	Mtime              *time.Time
-	Content            *[]byte
-	ContentType        *string
-	ContentDisposition *string
-	ContentEncoding    *string
-	ContentLanguage    *string
-	Metadata           map[string]*string
-	ACL                *string
-	CacheControl       *string
-	VersionId          *string
+	Key                *string            `json:"-"`
+	ETag               *string            `json:"e_tag"`
+	Mtime              *time.Time         `json:"mtime"`
+	Content            *[]byte            `json:"-"`
+	ContentType        *string            `json:"content_type"`
+	ContentDisposition *string            `json:"content_disposition"`
+	ContentEncoding    *string            `json:"content_encoding"`
+	ContentLanguage    *string            `json:"content_language"`
+	Metadata           map[string]*string `json:"metadata"`
+	ACL                *string            `json:"acl"`
+	CacheControl       *string            `json:"cache_control"`
+	VersionId          *string            `json:"version_id"`
 }
 
 //Storage interface
