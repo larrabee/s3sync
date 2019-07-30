@@ -203,12 +203,11 @@ func main() {
 	syncStartTime := time.Now()
 	syncGroup.Run()
 
-	progressChanQ := make(chan bool)
 	if cli.ShowProgress {
-		go func(quit <-chan bool) {
+		go func() {
 			for {
 				select {
-				case <-quit:
+				case <-ctx.Done():
 					return
 				default:
 					dur := time.Since(syncStartTime).Seconds()
@@ -219,7 +218,7 @@ func main() {
 					time.Sleep(time.Second)
 				}
 			}
-		}(progressChanQ)
+		}()
 	}
 
 	syncStatus := 0
@@ -252,10 +251,6 @@ WaitLoop:
 			cancel()
 			break WaitLoop
 		}
-	}
-
-	if cli.ShowProgress {
-		progressChanQ <- true
 	}
 
 	{
