@@ -199,7 +199,7 @@ func main() {
 		Fn:   collection.Terminator,
 	})
 
-	log.Info("Starting sync\n")
+	log.Info("Starting sync")
 	syncStartTime := time.Now()
 	syncGroup.Run()
 
