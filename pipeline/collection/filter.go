@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 )
 
+// FilterObjectsByExt accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to []string type
+// This filter skips objects with extensions that are not specified in the config.
 var FilterObjectsByExt pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -34,6 +37,9 @@ var FilterObjectsByExt pipeline.StepFn = func(group *pipeline.Group, stepNum int
 	}
 }
 
+// FilterObjectsByExtNot accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to []string type
+// This filter skips objects with extensions that are specified in the config.
 var FilterObjectsByExtNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -61,6 +67,9 @@ var FilterObjectsByExtNot pipeline.StepFn = func(group *pipeline.Group, stepNum 
 	}
 }
 
+// FilterObjectsByCT accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to []string type
+// This filter skips objects with Content-Type that are not specified in the config.
 var FilterObjectsByCT pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -87,6 +96,9 @@ var FilterObjectsByCT pipeline.StepFn = func(group *pipeline.Group, stepNum int,
 	}
 }
 
+// FilterObjectsByCTNot accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to []string type
+// This filter skips objects with Content-Type that are specified in the config.
 var FilterObjectsByCTNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -113,6 +125,9 @@ var FilterObjectsByCTNot pipeline.StepFn = func(group *pipeline.Group, stepNum i
 	}
 }
 
+// FilterObjectsByMtimeAfter accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to int64 type
+// This filter accepts objects that modified after given unix timestamp
 var FilterObjectsByMtimeAfter pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.(int64)
@@ -132,6 +147,9 @@ var FilterObjectsByMtimeAfter pipeline.StepFn = func(group *pipeline.Group, step
 	}
 }
 
+// FilterObjectsByMtimeBefore accepts an input object and checks if it matches the filter
+// This filter read configuration from Step.Config and assert it type to int64 type
+// This filter accepts objects that modified before given unix timestamp
 var FilterObjectsByMtimeBefore pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.(int64)
@@ -151,6 +169,9 @@ var FilterObjectsByMtimeBefore pipeline.StepFn = func(group *pipeline.Group, ste
 	}
 }
 
+// FilterObjectsModified accepts an input object and checks if it matches the filter
+// This filter gets object meta from target storage and compare object ETags. If Etags are equal object will be skipped
+// For FS storage xattr support are required for proper work.
 var FilterObjectsModified pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	for obj := range input {
 		select {

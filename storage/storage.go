@@ -1,3 +1,4 @@
+// Package storage provides interface for working with different storage's like local FS and Amazon S3
 package storage
 
 import (
@@ -6,10 +7,13 @@ import (
 	"time"
 )
 
+// Log implement Logrus logger for debug logging
 var Log = logrus.New()
 
+// Type of Storage
 type Type int
 
+// Storage types
 const (
 	TypeS3 Type = iota + 1
 	TypeS3Versioned
@@ -30,6 +34,7 @@ type Object struct {
 	ACL                *string            `json:"acl"`
 	CacheControl       *string            `json:"cache_control"`
 	VersionId          *string            `json:"version_id"`
+	IsLatest           *bool              `json:"-"`
 }
 
 //Storage interface

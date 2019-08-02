@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-//S3Storage configuration
+// S3vStorage configuration
 type S3vStorage struct {
 	awsSvc        *s3.S3
 	awsSession    *session.Session
@@ -30,7 +30,8 @@ type S3vStorage struct {
 	rlBucket      ratelimit.Bucket
 }
 
-//NewS3Storage return new configured S3 storage
+// NewS3vStorage return new configured S3 storage
+// It differs from S3 storage in that it can work with file versions
 func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3vStorage {
 	sess := session.Must(session.NewSession())
 
@@ -72,10 +73,12 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 	return &storage
 }
 
+// WithContext add's context to storage
 func (storage *S3vStorage) WithContext(ctx context.Context) {
 	storage.ctx = ctx
 }
 
+// WithRateLimit set rate limit (bytes/sec) for storage
 func (storage *S3vStorage) WithRateLimit(limit int) error {
 	bucket, err := ratelimit.NewBucketWithRate(float64(limit), int64(limit))
 	if err != nil {
@@ -85,12 +88,12 @@ func (storage *S3vStorage) WithRateLimit(limit int) error {
 	return nil
 }
 
-//List S3 bucket and send founded objects to chan
+// List S3 bucket and send founded objects versions to chan
 func (storage *S3vStorage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectVersionsOutput, lastPage bool) bool {
 		for _, o := range p.Versions {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
-			output <- &Object{Key: &key, VersionId: o.VersionId, ETag: strongEtag(o.ETag), Mtime: o.LastModified}
+			output <- &Object{Key: &key, VersionId: o.VersionId, ETag: strongEtag(o.ETag), Mtime: o.LastModified, IsLatest: o.IsLatest}
 		}
 		storage.listMarker = p.VersionIdMarker
 		return !lastPage // continue paging
@@ -119,7 +122,8 @@ func (storage *S3vStorage) List(output chan<- *Object) error {
 	}
 }
 
-//PutObject to bucket
+// PutObject saves object to S3
+// PutObject ignore VersionId, it always save object as latest version
 func (storage *S3vStorage) PutObject(obj *Object) error {
 	objReader := bytes.NewReader(*obj.Content)
 	rlReader := ratelimit.NewReadSeeker(objReader, storage.rlBucket)
@@ -151,7 +155,7 @@ func (storage *S3vStorage) PutObject(obj *Object) error {
 	}
 }
 
-//GetObjectContent download object content from S3
+// GetObjectContent read object content and metadata from S3
 func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 	input := &s3.GetObjectInput{
 		Bucket:    storage.awsBucket,
@@ -194,7 +198,7 @@ func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 	}
 }
 
-//GetObjectMeta update object metadata from S3
+// GetObjectMeta update object metadata from S3
 func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket:    storage.awsBucket,
@@ -225,6 +229,7 @@ func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 	}
 }
 
+// DeleteObject remove object from S3
 func (storage *S3vStorage) DeleteObject(obj *Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket:    storage.awsBucket,
@@ -246,7 +251,7 @@ func (storage *S3vStorage) DeleteObject(obj *Object) error {
 	}
 }
 
-//GetStorageType return storage type
+// GetStorageType return storage type
 func (storage *S3vStorage) GetStorageType() Type {
 	return TypeS3Versioned
 }

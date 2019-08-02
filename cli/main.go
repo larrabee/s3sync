@@ -26,6 +26,7 @@ const (
 	goThreadsPerCPU = 8
 )
 
+// init program runtime: parse cli args and set logger
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU() * goThreadsPerCPU)
 	var err error
