@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 )
 
-// FilterObjectsByExt accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to []string type
+// FilterObjectsByExt accepts an input object and checks if it matches the filter.
 // This filter skips objects with extensions that are not specified in the config.
+//
+// This filter read configuration from Step.Config and assert it type to []string type.
 var FilterObjectsByExt pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -37,9 +38,10 @@ var FilterObjectsByExt pipeline.StepFn = func(group *pipeline.Group, stepNum int
 	}
 }
 
-// FilterObjectsByExtNot accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to []string type
+// FilterObjectsByExtNot accepts an input object and checks if it matches the filter.
 // This filter skips objects with extensions that are specified in the config.
+//
+// This filter read configuration from Step.Config and assert it type to []string type.
 var FilterObjectsByExtNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -67,9 +69,10 @@ var FilterObjectsByExtNot pipeline.StepFn = func(group *pipeline.Group, stepNum 
 	}
 }
 
-// FilterObjectsByCT accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to []string type
+// FilterObjectsByCT accepts an input object and checks if it matches the filter.
 // This filter skips objects with Content-Type that are not specified in the config.
+//
+// This filter read configuration from Step.Config and assert it type to []string type.
 var FilterObjectsByCT pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -96,9 +99,10 @@ var FilterObjectsByCT pipeline.StepFn = func(group *pipeline.Group, stepNum int,
 	}
 }
 
-// FilterObjectsByCTNot accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to []string type
+// FilterObjectsByCTNot accepts an input object and checks if it matches the filter.
 // This filter skips objects with Content-Type that are specified in the config.
+//
+// This filter read configuration from Step.Config and assert it type to []string type.
 var FilterObjectsByCTNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.([]string)
@@ -125,9 +129,10 @@ var FilterObjectsByCTNot pipeline.StepFn = func(group *pipeline.Group, stepNum i
 	}
 }
 
-// FilterObjectsByMtimeAfter accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to int64 type
-// This filter accepts objects that modified after given unix timestamp
+// FilterObjectsByMtimeAfter accepts an input object and checks if it matches the filter.
+// This filter accepts objects that modified after given unix timestamp.
+//
+// This filter read configuration from Step.Config and assert it type to int64 type.
 var FilterObjectsByMtimeAfter pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.(int64)
@@ -147,9 +152,10 @@ var FilterObjectsByMtimeAfter pipeline.StepFn = func(group *pipeline.Group, step
 	}
 }
 
-// FilterObjectsByMtimeBefore accepts an input object and checks if it matches the filter
-// This filter read configuration from Step.Config and assert it type to int64 type
-// This filter accepts objects that modified before given unix timestamp
+// FilterObjectsByMtimeBefore accepts an input object and checks if it matches the filter.
+// This filter accepts objects that modified before given unix timestamp.
+//
+// This filter read configuration from Step.Config and assert it type to int64 type.
 var FilterObjectsByMtimeBefore pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	info := group.GetStepInfo(stepNum)
 	cfg, ok := info.Config.(int64)

@@ -1,4 +1,4 @@
-// Package pipeline provides functions to build synchronisation pipeline
+// Package pipeline provides functions to build synchronisation pipeline.
 package pipeline
 
 import (
@@ -8,10 +8,10 @@ import (
 	"sync"
 )
 
-// Log implement Logrus logger for debug logging
+// Log implement Logrus logger for debug logging.
 var Log = logrus.New()
 
-// Group store a Source and Target storage's and pipeline configuration
+// Group store a Source and Target storage's and pipeline configuration.
 type Group struct {
 	Source  storage.Storage
 	Target  storage.Storage
@@ -21,8 +21,8 @@ type Group struct {
 	errWg   *sync.WaitGroup
 }
 
-// NewGroup return a new prepared Group
-// You should always create new Group{} with this constructor
+// NewGroup return a new prepared Group.
+// You should always create new Group{} with this constructor.
 func NewGroup() Group {
 	group := Group{
 		errChan: make(chan error),
@@ -33,23 +33,23 @@ func NewGroup() Group {
 	return group
 }
 
-// WithContext add's context to group
+// WithContext add's context to group.
 func (group *Group) WithContext(ctx context.Context) {
 	group.Ctx = ctx
 }
 
-// SetSource configure source storage for group
+// SetSource configure source storage for group.
 func (group *Group) SetSource(st storage.Storage) {
 	group.Source = st
 }
 
-// SetTarget configure target storage for group
+// SetTarget configure target storage for group.
 func (group *Group) SetTarget(st storage.Storage) {
 	group.Target = st
 }
 
-// AddPipeStep add pipeline step to group
-// Steps will executed sequentially, in order of addition
+// AddPipeStep add pipeline step to group.
+// Steps will executed sequentially, in order of addition.
 func (group *Group) AddPipeStep(step Step) {
 	step.errChan = make(chan error)
 	step.workerWg = &sync.WaitGroup{}
@@ -59,7 +59,7 @@ func (group *Group) AddPipeStep(step Step) {
 	group.steps = append(group.steps, step)
 }
 
-// GetStepsInfo return info about all pipeline steps
+// GetStepsInfo return info about all pipeline steps.
 func (group *Group) GetStepsInfo() []StepInfo {
 	res := make([]StepInfo, len(group.steps))
 	for i := range group.steps {
@@ -72,7 +72,7 @@ func (group *Group) GetStepsInfo() []StepInfo {
 	return res
 }
 
-// GetStepInfo return info about step with given sequential number
+// GetStepInfo return info about step with given sequential number.
 func (group *Group) GetStepInfo(stepNum int) StepInfo {
 	return StepInfo{Stats: group.steps[stepNum].stats,
 		Name:   group.steps[stepNum].Name,
@@ -81,8 +81,9 @@ func (group *Group) GetStepInfo(stepNum int) StepInfo {
 	}
 }
 
-// Run start the pipeline execution
-// It links all the steps in a chain
+// Run start the pipeline execution.
+//
+// For result and error handling see ErrChan() function.
 func (group *Group) Run() {
 	for i := 0; i < len(group.steps); i++ {
 
@@ -142,10 +143,12 @@ func (group *Group) Run() {
 	}
 }
 
-// ErrChan return a Group error chan
-// All pipeline errors will be sent to this channel
-// nil message mean that all pipeline functions completed and pipeline was terminated
-// To prevent leakage of resources in the event of a context cancellation, you should read all messages from this channel
+// ErrChan return a Group error chan.
+// All pipeline errors will be sent errors to this channel.
+//
+// "nil" message mean that all pipeline functions completed and pipeline was terminated.
+// To prevent leakage of resources in the event of a context cancellation, you should read all messages from this channel.
+// ErrChan will be closed after receiving a "nil" message.
 func (group *Group) ErrChan() chan error {
 	return group.errChan
 }

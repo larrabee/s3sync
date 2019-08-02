@@ -1,3 +1,4 @@
+// Package provides the cli util s3sync.
 package main
 
 import (
