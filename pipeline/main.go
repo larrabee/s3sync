@@ -149,6 +149,6 @@ func (group *Group) Run() {
 // "nil" message mean that all pipeline functions completed and pipeline was terminated.
 // To prevent leakage of resources in the event of a context cancellation, you should read all messages from this channel.
 // ErrChan will be closed after receiving a "nil" message.
-func (group *Group) ErrChan() chan error {
+func (group *Group) ErrChan() <-chan error {
 	return group.errChan
 }
