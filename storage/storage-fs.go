@@ -17,7 +17,7 @@ import (
 
 // FSStorage configuration.
 type FSStorage struct {
-	Dir      string
+	dir      string
 	filePerm os.FileMode
 	dirPerm  os.FileMode
 	bufSize  int
@@ -31,7 +31,7 @@ type FSStorage struct {
 // You should always create new storage with this constructor.
 func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool) *FSStorage {
 	storage := FSStorage{
-		Dir:      filepath.Clean(dir) + "/",
+		dir:      filepath.Clean(dir) + "/",
 		filePerm: filePerm,
 		dirPerm:  dirPerm,
 		xattr:    extendedMeta,
@@ -68,7 +68,7 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 			return storage.ctx.Err()
 		default:
 			if de.IsRegular() {
-				key := strings.TrimPrefix(path, storage.Dir)
+				key := strings.TrimPrefix(path, storage.dir)
 				output <- &Object{Key: &key}
 			}
 			if de.IsSymlink() {
@@ -81,7 +81,7 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 					return err
 				}
 				if !symStat.IsDir() {
-					key := strings.TrimPrefix(path, storage.Dir)
+					key := strings.TrimPrefix(path, storage.dir)
 					output <- &Object{Key: &key}
 				}
 			}
@@ -89,7 +89,7 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 		}
 	}
 
-	err := godirwalk.Walk(storage.Dir, &godirwalk.Options{
+	err := godirwalk.Walk(storage.dir, &godirwalk.Options{
 		FollowSymbolicLinks: true,
 		Unsorted:            true,
 		ScratchBuffer:       make([]byte, storage.bufSize),
@@ -103,7 +103,7 @@ func (storage *FSStorage) List(output chan<- *Object) error {
 
 // PutObject saves object to FS.
 func (storage *FSStorage) PutObject(obj *Object) error {
-	destPath := filepath.Join(storage.Dir, *obj.Key)
+	destPath := filepath.Join(storage.dir, *obj.Key)
 	err := os.MkdirAll(filepath.Dir(destPath), storage.dirPerm)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (storage *FSStorage) PutObject(obj *Object) error {
 
 // GetObjectContent read object content and metadata from FS.
 func (storage *FSStorage) GetObjectContent(obj *Object) error {
-	destPath := filepath.Join(storage.Dir, *obj.Key)
+	destPath := filepath.Join(storage.dir, *obj.Key)
 	f, err := os.Open(destPath)
 	if err != nil {
 		return err
@@ -190,7 +190,7 @@ func (storage *FSStorage) GetObjectContent(obj *Object) error {
 
 // GetObjectMeta update object metadata from FS.
 func (storage *FSStorage) GetObjectMeta(obj *Object) error {
-	destPath := filepath.Join(storage.Dir, *obj.Key)
+	destPath := filepath.Join(storage.dir, *obj.Key)
 	f, err := os.Open(destPath)
 	if err != nil {
 		return err
@@ -236,7 +236,7 @@ func (storage *FSStorage) GetObjectMeta(obj *Object) error {
 
 // DeleteObject remove object from FS.
 func (storage *FSStorage) DeleteObject(obj *Object) error {
-	destPath := filepath.Join(storage.Dir, *obj.Key)
+	destPath := filepath.Join(storage.dir, *obj.Key)
 	err := os.Remove(destPath)
 	if err != nil {
 		return err
