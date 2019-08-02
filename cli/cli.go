@@ -226,11 +226,11 @@ func parseBandwith(s string) (int, bool) {
 			continue
 		}
 		switch r {
-		case 'k','K':
+		case 'k', 'K':
 			multiplier = 1024
-		case 'm','M':
+		case 'm', 'M':
 			multiplier = 1024 * 1024
-		case 'g','G':
+		case 'g', 'G':
 			multiplier = 1024 * 1024 * 1024
 		default:
 			return 0, false

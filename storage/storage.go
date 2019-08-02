@@ -1,4 +1,4 @@
-// Package storage provides interface for working with different storage's like local FS and Amazon S3
+// Package storage provides interface for working with different storage's like local FS and Amazon S3.
 package storage
 
 import (
@@ -7,20 +7,20 @@ import (
 	"time"
 )
 
-// Log implement Logrus logger for debug logging
+// Log implement Logrus logger for debug logging.
 var Log = logrus.New()
 
-// Type of Storage
+// Type of Storage.
 type Type int
 
-// Storage types
+// Storage types.
 const (
 	TypeS3 Type = iota + 1
 	TypeS3Versioned
 	TypeFS
 )
 
-//Object contain content and metadata of S3 object
+// Object contain content and metadata of S3 object.
 type Object struct {
 	Key                *string            `json:"-"`
 	ETag               *string            `json:"e_tag"`
@@ -37,7 +37,7 @@ type Object struct {
 	IsLatest           *bool              `json:"-"`
 }
 
-//Storage interface
+// Storage interface.
 type Storage interface {
 	WithContext(ctx context.Context)
 	WithRateLimit(limit int) error
