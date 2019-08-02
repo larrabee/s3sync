@@ -27,6 +27,7 @@ const (
 	onFailSkipMissing
 )
 
+// Parsed CLI args with embedded fields
 type argsParsed struct {
 	args
 	Source             connect
@@ -44,6 +45,7 @@ type connect struct {
 	Path   string
 }
 
+// Raw CLI args
 type args struct {
 	// Source config
 	Source         string `arg:"positional"`
@@ -87,17 +89,17 @@ type args struct {
 	RateLimitBandwidth string `arg:"--ratelimit-bandwidth" help:"Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G"`
 }
 
-//VersionId return program version string on human format
+// VersionId return program version string on human format
 func (args) Version() string {
 	return fmt.Sprintf("VersionId: %v, commit: %v, built at: %v", version, commit, date)
 }
 
-//Description return program description string
+// Description return program description string
 func (args) Description() string {
 	return "Really fast sync tool for S3"
 }
 
-//GetCliArgs return cli args structure and error
+// GetCliArgs parse cli args, set default values, check input values and return argsParsed struct
 func GetCliArgs() (cli argsParsed, err error) {
 	rawCli := args{}
 	rawCli.SourceRegion = "us-east-1"

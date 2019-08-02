@@ -5,8 +5,12 @@ import (
 	"sync"
 )
 
+//StepFn implement the type of pipeline Step function
 type StepFn func(group *Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error)
 
+// Step contain configuration of pipeline step and it's internal structure
+// Be careful with Config interface! Check of its type should implemented in StepFn.
+// If typing fails, you get a StepConfigurationError in runtime.
 type Step struct {
 	Name       string
 	Fn         StepFn
@@ -21,12 +25,14 @@ type Step struct {
 	stats      StepStats
 }
 
+// StepStats to keep basic step statistics
 type StepStats struct {
 	Input  uint64
 	Output uint64
 	Error  uint64
 }
 
+// StepInfo return information of step, statistic and step configuration interface
 type StepInfo struct {
 	Stats  StepStats
 	Name   string
