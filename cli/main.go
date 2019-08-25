@@ -166,11 +166,19 @@ func main() {
 		AddWorkers: cli.Workers,
 	})
 
-	if cli.Target.Type == storage.TypeS3 {
+	if (cli.Target.Type == storage.TypeS3) && (cli.S3Acl != "") {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:   "ACLUpdater",
 			Fn:     collection.ACLUpdater,
 			Config: cli.S3Acl,
+		})
+	}
+
+	if (cli.Target.Type == storage.TypeS3) && (cli.S3StorageClass != "") {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "StorageClassUpdater",
+			Fn:     collection.StorageClassUpdater,
+			Config: cli.S3StorageClass,
 		})
 	}
 
