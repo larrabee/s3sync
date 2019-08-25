@@ -95,7 +95,12 @@ func (storage *S3Storage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
-			output <- &Object{Key: &key, ETag: strongEtag(o.ETag), Mtime: o.LastModified}
+			output <- &Object{
+				Key:          &key,
+				ETag:         strongEtag(o.ETag),
+				Mtime:        o.LastModified,
+				StorageClass: o.StorageClass,
+			}
 		}
 		storage.listMarker = p.Marker
 		return !lastPage // continue paging
@@ -140,6 +145,7 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 		ACL:                obj.ACL,
 		Metadata:           obj.Metadata,
 		CacheControl:       obj.CacheControl,
+		StorageClass:       obj.StorageClass,
 	}
 
 	for i := uint(0); ; i++ {
@@ -193,6 +199,7 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
+		obj.StorageClass = result.StorageClass
 
 		return nil
 	}
@@ -223,6 +230,7 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
+		obj.StorageClass = result.StorageClass
 
 		return nil
 	}

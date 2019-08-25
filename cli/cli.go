@@ -63,6 +63,7 @@ type args struct {
 	S3Retry         uint   `arg:"--s3-retry" help:"Max numbers of retries to sync file"`
 	S3RetryInterval uint   `arg:"--s3-retry-sleep" help:"Sleep interval (sec) between sync retries on error"`
 	S3Acl           string `arg:"--s3-acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
+	S3StorageClass  string `arg:"--s3-storage-class" help:"S3 Storage Class for uploaded files."`
 	S3KeysPerReq    int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
 	// FS config
 	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
@@ -119,6 +120,8 @@ func GetCliArgs() (cli argsParsed, err error) {
 	cli.args = rawCli
 
 	switch cli.args.S3Acl {
+	case "":
+		break
 	case "private":
 		break
 	case "public-read":

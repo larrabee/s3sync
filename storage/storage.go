@@ -35,6 +35,7 @@ type Object struct {
 	CacheControl       *string            `json:"cache_control"`
 	VersionId          *string            `json:"version_id"`
 	IsLatest           *bool              `json:"-"`
+	StorageClass       *string            `json:"storage_class"`
 }
 
 // Storage interface.
