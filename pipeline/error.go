@@ -1,6 +1,9 @@
 package pipeline
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/larrabee/s3sync/storage"
+)
 
 // PipelineError implement wrapper for pipeline errors.
 type PipelineError struct {
@@ -21,4 +24,13 @@ type StepConfigurationError struct {
 
 func (e *StepConfigurationError) Error() string {
 	return fmt.Sprintf("pipeline step: %d (%s) invalid configuration passed", e.StepNum, e.StepName)
+}
+
+type ObjectError struct {
+	Object *storage.Object
+	Err error
+}
+
+func (e *ObjectError) Error() string {
+	return fmt.Sprintf("object: %s sync error: %s", *e.Object.Key, e.Err)
 }

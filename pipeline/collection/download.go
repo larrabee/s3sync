@@ -2,6 +2,7 @@
 package collection
 
 import (
+	"context"
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
 )
@@ -15,7 +16,11 @@ var LoadObjectMeta pipeline.StepFn = func(group *pipeline.Group, stepNum int, in
 		default:
 			err := group.Source.GetObjectMeta(obj)
 			if err != nil {
-				errChan <- err
+				if err == context.Canceled {
+					errChan <- err
+				} else {
+					errChan <- &pipeline.ObjectError{Object:obj, Err: err}
+				}
 			} else {
 				output <- obj
 			}
@@ -32,7 +37,11 @@ var LoadObjectData pipeline.StepFn = func(group *pipeline.Group, stepNum int, in
 		default:
 			err := group.Source.GetObjectContent(obj)
 			if err != nil {
-				errChan <- err
+				if err == context.Canceled {
+					errChan <- err
+				} else {
+					errChan <- &pipeline.ObjectError{Object:obj, Err: err}
+				}
 			} else {
 				output <- obj
 			}
