@@ -247,10 +247,14 @@ WaitLoop:
 				break WaitLoop
 			}
 			if cli.OnFail == onFailSkip && err.(*pipeline.PipelineError).Err != context.Canceled {
-				log.Errorf("Sync err: %s, skipping", err)
+				if oerr, ok := err.(*pipeline.PipelineError).Err.(*pipeline.ObjectError); ok {
+					log.Errorf("Failed to sync object: %s, error: %s", *oerr.Object.Key, oerr.Err)
+				} else {
+					log.Errorf("Sync err: %s, skipping", err)
+				}
 				continue WaitLoop
 			}
-			aerr, ok := err.(*pipeline.PipelineError).Err.(awserr.Error)
+			aerr, ok := err.(*pipeline.PipelineError).Err.(*pipeline.ObjectError).Err.(awserr.Error)
 			if (cli.OnFail == onFailSkipMissing) && ok && ((aerr.Code() == s3.ErrCodeNoSuchKey) || (aerr.Code() == "NotFound")) {
 				log.Infof("Skip missing object, err: %s", aerr.Error())
 				continue WaitLoop
