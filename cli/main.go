@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -240,30 +241,66 @@ WaitLoop:
 			log.Warnf("Receive signal: %s, terminating", recSignal.String())
 			cancel()
 			syncStatus = 2
-			break WaitLoop
 		case err := <-syncGroup.ErrChan():
 			if err == nil {
-				log.Infof("Sync Done")
+				switch syncStatus {
+				case 0:
+					log.Infof("Sync Done")
+				case 1:
+					log.Error("Sync Failed")
+				case 2:
+					log.Warnf("Sync Aborted")
+				case 3:
+					log.Errorf("Sync Configuration error")
+				default:
+					log.Warnf("Sync Unknown status")
+				}
 				break WaitLoop
 			}
-			if cli.OnFail == onFailSkip && err.(*pipeline.PipelineError).Err != context.Canceled {
-				if oerr, ok := err.(*pipeline.PipelineError).Err.(*pipeline.ObjectError); ok {
-					log.Errorf("Failed to sync object: %s, error: %s", *oerr.Object.Key, oerr.Err)
-				} else {
-					log.Errorf("Sync err: %s, skipping", err)
-				}
-				continue WaitLoop
-			}
-			aerr, ok := err.(*pipeline.PipelineError).Err.(*pipeline.ObjectError).Err.(awserr.Error)
-			if (cli.OnFail == onFailSkipMissing) && ok && ((aerr.Code() == s3.ErrCodeNoSuchKey) || (aerr.Code() == "NotFound")) {
-				log.Infof("Skip missing object, err: %s", aerr.Error())
+
+			var confErr *pipeline.StepConfigurationError
+			if errors.As(err, &confErr) {
+				log.Errorf("Pipeline configuration error: %s, terminating", confErr)
+				syncStatus = 3
+				cancel()
 				continue WaitLoop
 			}
 
-			log.Errorf("Sync error: %s, terminating", err)
-			syncStatus = 1
-			cancel()
-			break WaitLoop
+			var aErr awserr.Error
+			if errors.Is(err, context.Canceled) || (errors.As(err, &aErr) && aErr.OrigErr() == context.Canceled) {
+				continue WaitLoop
+			}
+
+			if (cli.OnFail == onFailSkipMissing) || cli.OnFail == onFailSkip {
+				var aErr awserr.Error
+				if errors.As(err, &aErr) {
+					if (aErr.Code() == s3.ErrCodeNoSuchKey) || (aErr.Code() == "NotFound") {
+						var objErr *pipeline.ObjectError
+						if errors.As(err, &objErr) {
+							log.Warnf("Skip missing object: %s", *objErr.Object.Key)
+						} else {
+							log.Warnf("Skip missing object, err: %s", aErr.Error())
+						}
+						continue WaitLoop
+					}
+				}
+			}
+
+			if cli.OnFail == onFailSkip {
+				var objErr *pipeline.ObjectError
+				if errors.As(err, &objErr) {
+					log.Warnf("Failed to sync object: %s, error: %s, skipping", *objErr.Object.Key, objErr.Err)
+				} else {
+					log.Warnf("Sync err: %s, skipping", err)
+				}
+				continue WaitLoop
+			}
+
+			if syncStatus == 0 {
+				log.Errorf("Sync error: %s, terminating", err)
+				syncStatus = 1
+				cancel()
+			}
 		}
 	}
 

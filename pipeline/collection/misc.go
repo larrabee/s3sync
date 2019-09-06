@@ -13,12 +13,7 @@ import (
 // Pipeline should end with Terminator.
 var Terminator pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	for range input {
-		select {
-		case <-group.Ctx.Done():
-			return
-		default:
-			continue
-		}
+		continue
 	}
 }
 
@@ -28,13 +23,9 @@ var Logger pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-ch
 	cfg, ok := info.Config.(*logrus.Logger)
 	if !ok {
 		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum}
-		return
 	}
 	for obj := range input {
-		select {
-		case <-group.Ctx.Done():
-			return
-		default:
+		if ok {
 			cfg.Infof("Key: %s", *obj.Key)
 			output <- obj
 		}
@@ -49,13 +40,9 @@ var ACLUpdater pipeline.StepFn = func(group *pipeline.Group, stepNum int, input 
 	cfg, ok := info.Config.(string)
 	if !ok {
 		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum}
-		return
 	}
 	for obj := range input {
-		select {
-		case <-group.Ctx.Done():
-			return
-		default:
+		if ok {
 			obj.ACL = &cfg
 			output <- obj
 		}
@@ -69,13 +56,9 @@ var StorageClassUpdater pipeline.StepFn = func(group *pipeline.Group, stepNum in
 	cfg, ok := info.Config.(string)
 	if !ok {
 		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum}
-		return
 	}
 	for obj := range input {
-		select {
-		case <-group.Ctx.Done():
-			return
-		default:
+		if ok {
 			obj.StorageClass = &cfg
 			output <- obj
 		}
@@ -90,18 +73,14 @@ var PipelineRateLimit pipeline.StepFn = func(group *pipeline.Group, stepNum int,
 	cfg, ok := info.Config.(uint)
 	if !ok {
 		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum}
-		return
 	}
 	bucket, err := ratelimit.NewBucketWithRate(float64(cfg), int64(cfg*2))
 	if err != nil {
-		errChan <- err
-		return
+		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum, Err: err}
+		ok = false
 	}
 	for obj := range input {
-		select {
-		case <-group.Ctx.Done():
-			return
-		default:
+		if ok {
 			bucket.Wait(1)
 			output <- obj
 		}

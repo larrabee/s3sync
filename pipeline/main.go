@@ -105,38 +105,39 @@ func (group *Group) Run() {
 			close(group.steps[i].outChan)
 		}(i)
 
-		if i > 0 {
-			go func(i int) {
+		go func(i int) {
+			if i > 0 {
 				for obj := range group.steps[i-1].outChan {
 					group.steps[i].stats.Input += 1
 					group.steps[i].intInChan <- obj
 				}
-				close(group.steps[i].intInChan)
-			}(i)
-		}
+			}
+			close(group.steps[i].intInChan)
+		}(i)
 
 		go func(i int) {
 			for w := uint(0); w <= group.steps[i].AddWorkers; w++ {
 				group.steps[i].workerWg.Add(1)
 				go func(i int) {
-					defer group.steps[i].workerWg.Done()
 					if i == 0 {
 						group.steps[i].Fn(group, i, nil, group.steps[i].intOutChan, group.steps[i].errChan)
 					} else {
 						group.steps[i].Fn(group, i, group.steps[i].intInChan, group.steps[i].intOutChan, group.steps[i].errChan)
 					}
+					group.steps[i].workerWg.Done()
 				}(i)
 			}
 
 			group.steps[i].workerWg.Wait()
-			Log.Debugf("Pipeline step: %s finished", group.steps[i].Name)
 			close(group.steps[i].intOutChan)
 			close(group.steps[i].errChan)
+			Log.Debugf("Pipeline step: %s finished", group.steps[i].Name)
 			if i+1 == len(group.steps) {
 				Log.Debugf("All pipeline steps finished")
 				group.errWg.Wait()
 				group.errChan <- nil
 				close(group.errChan)
+				Log.Debugf("Pipeline terminated")
 			}
 		}(i)
 
