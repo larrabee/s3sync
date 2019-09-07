@@ -2,10 +2,10 @@
 package pipeline
 
 import (
-	"context"
 	"github.com/larrabee/s3sync/storage"
 	"github.com/sirupsen/logrus"
 	"sync"
+	"time"
 )
 
 // Log implement Logrus logger for debug logging.
@@ -13,12 +13,12 @@ var Log = logrus.New()
 
 // Group store a Source and Target storage's and pipeline configuration.
 type Group struct {
-	Source  storage.Storage
-	Target  storage.Storage
-	Ctx     context.Context
-	steps   []Step
-	errChan chan error
-	errWg   *sync.WaitGroup
+	Source    storage.Storage
+	Target    storage.Storage
+	StartTime time.Time
+	steps     []Step
+	errChan   chan error
+	errWg     *sync.WaitGroup
 }
 
 // NewGroup return a new prepared Group.
@@ -27,15 +27,9 @@ func NewGroup() Group {
 	group := Group{
 		errChan: make(chan error),
 		errWg:   &sync.WaitGroup{},
-		Ctx:     context.Background(),
 		steps:   make([]Step, 0),
 	}
 	return group
-}
-
-// WithContext add's context to group.
-func (group *Group) WithContext(ctx context.Context) {
-	group.Ctx = ctx
 }
 
 // SetSource configure source storage for group.
@@ -140,8 +134,8 @@ func (group *Group) Run() {
 				Log.Debugf("Pipeline terminated")
 			}
 		}(i)
-
 	}
+	group.StartTime = time.Now()
 }
 
 // ErrChan return a Group error chan.
