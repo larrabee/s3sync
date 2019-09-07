@@ -1,7 +1,10 @@
 package pipeline
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/larrabee/s3sync/storage"
 )
 
@@ -50,4 +53,17 @@ func (e *ObjectError) Error() string {
 
 func (e *ObjectError) Unwrap() error {
 	return e.Err
+}
+
+func IsContextErr(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	var aErr awserr.Error
+	if errors.As(err, &aErr) && aErr.OrigErr() == context.Canceled {
+		return true
+	}
+
+	return false
 }

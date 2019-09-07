@@ -84,9 +84,11 @@ func (group *Group) Run() {
 		group.errWg.Add(1)
 		go func(i int) {
 			for e := range group.steps[i].errChan {
-				Log.Debugf("Recv pipeline err: %s", e)
-				group.steps[i].stats.Error += 1
-				group.errChan <- &PipelineError{StepName: group.steps[i].Name, StepNum: i, Err: e}
+				if !IsContextErr(e) {
+					Log.Debugf("Recv pipeline err: %s", e)
+					group.steps[i].stats.Error += 1
+					group.errChan <- &PipelineError{StepName: group.steps[i].Name, StepNum: i, Err: e}
+				}
 			}
 			group.errWg.Done()
 		}(i)

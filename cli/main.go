@@ -101,11 +101,6 @@ WaitLoop:
 				continue WaitLoop
 			}
 
-			var aErr awserr.Error
-			if errors.Is(err, context.Canceled) || (errors.As(err, &aErr) && aErr.OrigErr() == context.Canceled) {
-				continue WaitLoop
-			}
-
 			if (cli.OnFail == onFailSkipMissing) || cli.OnFail == onFailSkip {
 				var aErr awserr.Error
 				if errors.As(err, &aErr) {
