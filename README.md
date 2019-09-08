@@ -114,8 +114,8 @@ Download binary from [Release page](https://github.com/larrabee/s3sync/releases)
 Minimum go version: **1.13**  
 Build it with:
  ```
- go mod vendor
- go build
+go mod vendor
+go build -o s3sync ./cli 
  ```
 
 ## Using module
