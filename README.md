@@ -111,8 +111,12 @@ You can use filters.
 Download binary from [Release page](https://github.com/larrabee/s3sync/releases).  
 
 ## Building
-Build it with `go build`.
-You can use `dep ensure` for vendored dependencies.
+Minimum go version: **1.13**  
+Build it with:
+ ```
+ go mod vendor
+ go build
+ ```
 
 ## Using module
 You can easy use s3sync in your application. See example in `cli/` folder. 
