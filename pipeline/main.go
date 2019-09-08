@@ -82,60 +82,11 @@ func (group *Group) Run() {
 	for i := 0; i < len(group.steps); i++ {
 
 		group.errWg.Add(1)
-		go func(i int) {
-			for e := range group.steps[i].errChan {
-				if !IsContextErr(e) {
-					Log.Debugf("Recv pipeline err: %s", e)
-					group.steps[i].stats.Error += 1
-					group.errChan <- &PipelineError{StepName: group.steps[i].Name, StepNum: i, Err: e}
-				}
-			}
-			group.errWg.Done()
-		}(i)
 
-		go func(i int) {
-			for obj := range group.steps[i].intOutChan {
-				group.steps[i].stats.Output += 1
-				group.steps[i].outChan <- obj
-			}
-			close(group.steps[i].outChan)
-		}(i)
-
-		go func(i int) {
-			if i > 0 {
-				for obj := range group.steps[i-1].outChan {
-					group.steps[i].stats.Input += 1
-					group.steps[i].intInChan <- obj
-				}
-			}
-			close(group.steps[i].intInChan)
-		}(i)
-
-		go func(i int) {
-			for w := uint(0); w <= group.steps[i].AddWorkers; w++ {
-				group.steps[i].workerWg.Add(1)
-				go func(i int) {
-					if i == 0 {
-						group.steps[i].Fn(group, i, nil, group.steps[i].intOutChan, group.steps[i].errChan)
-					} else {
-						group.steps[i].Fn(group, i, group.steps[i].intInChan, group.steps[i].intOutChan, group.steps[i].errChan)
-					}
-					group.steps[i].workerWg.Done()
-				}(i)
-			}
-
-			group.steps[i].workerWg.Wait()
-			close(group.steps[i].intOutChan)
-			close(group.steps[i].errChan)
-			Log.Debugf("Pipeline step: %s finished", group.steps[i].Name)
-			if i+1 == len(group.steps) {
-				Log.Debugf("All pipeline steps finished")
-				group.errWg.Wait()
-				group.errChan <- nil
-				close(group.errChan)
-				Log.Debugf("Pipeline terminated")
-			}
-		}(i)
+		go copyErr(group, i)
+		go copyOutput(group, i)
+		go copyInput(group, i)
+		go startWorkers(group, i)
 	}
 	group.StartTime = time.Now()
 }
@@ -148,4 +99,59 @@ func (group *Group) Run() {
 // ErrChan will be closed after receiving a "nil" message.
 func (group *Group) ErrChan() <-chan error {
 	return group.errChan
+}
+
+func copyErr(group *Group, stepNum int) {
+	for e := range group.steps[stepNum].errChan {
+		if !IsContextErr(e) {
+			Log.Debugf("Recv pipeline err: %s", e)
+			group.steps[stepNum].stats.Error += 1
+			group.errChan <- &PipelineError{StepName: group.steps[stepNum].Name, StepNum: stepNum, Err: e}
+		}
+	}
+	group.errWg.Done()
+}
+
+func copyOutput(group *Group, stepNum int) {
+	for obj := range group.steps[stepNum].intOutChan {
+		group.steps[stepNum].stats.Output += 1
+		group.steps[stepNum].outChan <- obj
+	}
+	close(group.steps[stepNum].outChan)
+}
+
+func copyInput(group *Group, stepNum int) {
+	if stepNum > 0 {
+		for obj := range group.steps[stepNum-1].outChan {
+			group.steps[stepNum].stats.Input += 1
+			group.steps[stepNum].intInChan <- obj
+		}
+	}
+	close(group.steps[stepNum].intInChan)
+}
+
+func startWorkers(group *Group, stepNum int) {
+	for w := uint(0); w <= group.steps[stepNum].AddWorkers; w++ {
+		group.steps[stepNum].workerWg.Add(1)
+		go func(i int) {
+			if i == 0 {
+				group.steps[i].Fn(group, i, nil, group.steps[i].intOutChan, group.steps[i].errChan)
+			} else {
+				group.steps[i].Fn(group, i, group.steps[i].intInChan, group.steps[i].intOutChan, group.steps[i].errChan)
+			}
+			group.steps[i].workerWg.Done()
+		}(stepNum)
+	}
+
+	group.steps[stepNum].workerWg.Wait()
+	close(group.steps[stepNum].intOutChan)
+	close(group.steps[stepNum].errChan)
+	Log.Debugf("Pipeline step: %s finished", group.steps[stepNum].Name)
+	if stepNum+1 == len(group.steps) {
+		Log.Debugf("All pipeline steps finished")
+		group.errWg.Wait()
+		group.errChan <- nil
+		close(group.errChan)
+		Log.Debugf("Pipeline terminated")
+	}
 }
