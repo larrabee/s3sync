@@ -122,19 +122,9 @@ func GetCliArgs() (cli argsParsed, err error) {
 	switch cli.args.S3Acl {
 	case "":
 		break
-	case "private":
+	case "private", "public-read", "public-read-write", "aws-exec-read":
 		break
-	case "public-read":
-		break
-	case "public-read-write":
-		break
-	case "aws-exec-read":
-		break
-	case "authenticated-read":
-		break
-	case "bucket-owner-read":
-		break
-	case "bucket-owner-full-control":
+	case "authenticated-read", "bucket-owner-read", "bucket-owner-full-control":
 		break
 	default:
 		p.Fail("--acl must be one of \"private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")

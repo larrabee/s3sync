@@ -8,7 +8,7 @@ import (
 	"github.com/larrabee/s3sync/storage"
 )
 
-func SetupStorages(syncGroup *pipeline.Group, cli *argsParsed, ctx context.Context) error {
+func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsParsed) error {
 	var sourceStorage, targetStorage storage.Storage
 	switch cli.Source.Type {
 	case storage.TypeS3:
@@ -27,6 +27,7 @@ func SetupStorages(syncGroup *pipeline.Group, cli *argsParsed, ctx context.Conte
 	case storage.TypeFS:
 		targetStorage = storage.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr)
 	}
+
 	if sourceStorage == nil {
 		return fmt.Errorf("source storage is nil")
 	} else if targetStorage == nil {
@@ -47,7 +48,7 @@ func SetupStorages(syncGroup *pipeline.Group, cli *argsParsed, ctx context.Conte
 	return nil
 }
 
-func SetupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
+func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:     "ListSource",
 		Fn:       collection.ListSourceStorage,
