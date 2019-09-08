@@ -103,7 +103,7 @@ func (group *Group) ErrChan() <-chan error {
 
 func copyErr(group *Group, stepNum int) {
 	for e := range group.steps[stepNum].errChan {
-		if !IsContextErr(e) {
+		if !IsContextCancelErr(e) {
 			Log.Debugf("Recv pipeline err: %s", e)
 			group.steps[stepNum].stats.Error += 1
 			group.errChan <- &PipelineError{StepName: group.steps[stepNum].Name, StepNum: stepNum, Err: e}

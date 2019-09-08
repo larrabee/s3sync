@@ -25,14 +25,14 @@ const (
 	goThreadsPerCPU = 8
 )
 
-type SyncStatus int
+type syncStatus int
 
 const (
-	SyncStatusUnknown SyncStatus = iota - 1
-	SyncStatusOk
-	SyncStatusFailed
-	SyncStatusAborted
-	SyncStatusConfError
+	syncStatusUnknown syncStatus = iota - 1
+	syncStatusOk
+	syncStatusFailed
+	syncStatusAborted
+	syncStatusConfError
 )
 
 // init program runtime: parse cli args and set logger
@@ -63,20 +63,20 @@ func main() {
 	sysStopChan := make(chan os.Signal, 1)
 	signal.Notify(sysStopChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
-	err := SetupStorages(&syncGroup, &cli, ctx)
+	err := setupStorages(ctx, &syncGroup, &cli)
 	if err != nil {
 		log.Fatalf("Failed to setup storage, error: %s", err)
 	}
-	SetupPipeline(&syncGroup, &cli)
+	setupPipeline(&syncGroup, &cli)
 
 	log.Info("Starting sync")
 	syncGroup.Run()
 
 	if cli.ShowProgress {
-		go LiveStats(&syncGroup, ctx)
+		go printLiveStats(ctx, &syncGroup)
 	}
 
-	syncStatus := SyncStatusUnknown
+	syncStatus := syncStatusUnknown
 
 WaitLoop:
 	for {
@@ -84,11 +84,11 @@ WaitLoop:
 		case recSignal := <-sysStopChan:
 			log.Warnf("Receive signal: %s, terminating", recSignal.String())
 			cancel()
-			syncStatus = SyncStatusAborted
+			syncStatus = syncStatusAborted
 		case err := <-syncGroup.ErrChan():
 			if err == nil {
-				if syncStatus == SyncStatusUnknown {
-					syncStatus = SyncStatusOk
+				if syncStatus == syncStatusUnknown {
+					syncStatus = syncStatusOk
 				}
 				break WaitLoop
 			}
@@ -96,7 +96,7 @@ WaitLoop:
 			var confErr *pipeline.StepConfigurationError
 			if errors.As(err, &confErr) {
 				log.Errorf("Pipeline configuration error: %s, terminating", confErr)
-				syncStatus = SyncStatusConfError
+				syncStatus = syncStatusConfError
 				cancel()
 				continue WaitLoop
 			}
@@ -126,14 +126,14 @@ WaitLoop:
 				continue WaitLoop
 			}
 
-			if syncStatus == SyncStatusUnknown {
+			if syncStatus == syncStatusUnknown {
 				log.Errorf("Sync error: %s, terminating", err)
-				syncStatus = SyncStatusFailed
+				syncStatus = syncStatusFailed
 				cancel()
 			}
 		}
 	}
 
-	PrintStats(&syncGroup, syncStatus)
+	printFinalStats(&syncGroup, syncStatus)
 	log.Exit(int(syncStatus))
 }

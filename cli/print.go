@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func LiveStats(syncGroup *pipeline.Group, ctx context.Context) {
+func printLiveStats(ctx context.Context, syncGroup *pipeline.Group) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -23,7 +23,7 @@ func LiveStats(syncGroup *pipeline.Group, ctx context.Context) {
 	}
 }
 
-func PrintStats(syncGroup *pipeline.Group, status SyncStatus) {
+func printFinalStats(syncGroup *pipeline.Group, status syncStatus) {
 	dur := time.Since(syncGroup.StartTime).Seconds()
 	for _, val := range syncGroup.GetStepsInfo() {
 		log.Infof("%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
@@ -31,13 +31,13 @@ func PrintStats(syncGroup *pipeline.Group, status SyncStatus) {
 	log.Infof("Duration: %s", time.Since(syncGroup.StartTime).String())
 
 	switch status {
-	case SyncStatusOk:
+	case syncStatusOk:
 		log.Infof("Sync Done")
-	case SyncStatusFailed:
+	case syncStatusFailed:
 		log.Error("Sync Failed")
-	case SyncStatusAborted:
+	case syncStatusAborted:
 		log.Warnf("Sync Aborted")
-	case SyncStatusConfError:
+	case syncStatusConfError:
 		log.Errorf("Sync Configuration error")
 	default:
 		log.Warnf("Sync Unknown status")
