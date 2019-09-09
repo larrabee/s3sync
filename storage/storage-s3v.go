@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -63,7 +64,7 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
-		prefix:        prefix,
+		prefix:        filepath.Clean(prefix),
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
@@ -94,6 +95,8 @@ func (storage *S3vStorage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectVersionsOutput, lastPage bool) bool {
 		for _, o := range p.Versions {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+			key = strings.Replace(key, storage.prefix, "", 1)
+			key = strings.TrimPrefix(key, "/")
 			output <- &Object{
 				Key:          &key,
 				VersionId:    o.VersionId,
@@ -168,7 +171,7 @@ func (storage *S3vStorage) PutObject(obj *Object) error {
 func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 	input := &s3.GetObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       obj.Key,
+		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
@@ -212,7 +215,7 @@ func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       obj.Key,
+		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
@@ -244,7 +247,7 @@ func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 func (storage *S3vStorage) DeleteObject(obj *Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       obj.Key,
+		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
