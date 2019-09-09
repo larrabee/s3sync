@@ -64,7 +64,7 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
-		prefix:        prefix,
+		prefix:        filepath.Clean(prefix),
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
@@ -95,6 +95,8 @@ func (storage *S3Storage) List(output chan<- *Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+			key = strings.Replace(key, storage.prefix, "", 1)
+			key = strings.TrimPrefix(key, "/")
 			output <- &Object{
 				Key:          &key,
 				ETag:         strongEtag(o.ETag),
@@ -166,7 +168,7 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 func (storage *S3Storage) GetObjectContent(obj *Object) error {
 	input := &s3.GetObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    obj.Key,
+		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
@@ -209,7 +211,7 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    obj.Key,
+		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
@@ -240,7 +242,7 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 func (storage *S3Storage) DeleteObject(obj *Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    obj.Key,
+		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
