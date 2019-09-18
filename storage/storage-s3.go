@@ -64,7 +64,7 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
-		prefix:        filepath.Clean(prefix),
+		prefix:        cleanPrefix(prefix),
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
@@ -270,4 +270,10 @@ func (storage *S3Storage) GetStorageType() Type {
 func strongEtag(s *string) *string {
 	etag := strings.TrimPrefix(*s, "W/")
 	return &etag
+}
+
+func cleanPrefix(prefix string) string {
+	prefix = strings.TrimPrefix(prefix, "/")
+	prefix = strings.TrimSuffix(prefix, "/")
+	return prefix
 }
