@@ -12,7 +12,6 @@ import (
 	"github.com/larrabee/ratelimit"
 	"io"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -141,7 +140,7 @@ func (storage *S3vStorage) PutObject(obj *Object) error {
 
 	input := &s3.PutObjectInput{
 		Bucket:             storage.awsBucket,
-		Key:                aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:                aws.String(joinPrefix(storage.prefix, *obj.Key)),
 		Body:               rlReader,
 		ContentType:        obj.ContentType,
 		ContentDisposition: obj.ContentDisposition,
@@ -171,7 +170,7 @@ func (storage *S3vStorage) PutObject(obj *Object) error {
 func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 	input := &s3.GetObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:       aws.String(joinPrefix(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
@@ -215,7 +214,7 @@ func (storage *S3vStorage) GetObjectContent(obj *Object) error {
 func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:       aws.String(joinPrefix(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
@@ -247,7 +246,7 @@ func (storage *S3vStorage) GetObjectMeta(obj *Object) error {
 func (storage *S3vStorage) DeleteObject(obj *Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket:    storage.awsBucket,
-		Key:       aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:       aws.String(joinPrefix(storage.prefix, *obj.Key)),
 		VersionId: obj.VersionId,
 	}
 
