@@ -12,7 +12,7 @@ import (
 	"github.com/larrabee/ratelimit"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
@@ -138,7 +138,7 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 
 	input := &s3.PutObjectInput{
 		Bucket:             storage.awsBucket,
-		Key:                aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:                aws.String(joinPrefix(storage.prefix, *obj.Key)),
 		Body:               rlReader,
 		ContentType:        obj.ContentType,
 		ContentDisposition: obj.ContentDisposition,
@@ -168,7 +168,7 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 func (storage *S3Storage) GetObjectContent(obj *Object) error {
 	input := &s3.GetObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
@@ -211,7 +211,7 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
@@ -242,7 +242,7 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 func (storage *S3Storage) DeleteObject(obj *Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: storage.awsBucket,
-		Key:    aws.String(filepath.Join(storage.prefix, *obj.Key)),
+		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
@@ -276,4 +276,12 @@ func cleanPrefix(prefix string) string {
 	prefix = strings.TrimPrefix(prefix, "/")
 	prefix = strings.TrimSuffix(prefix, "/")
 	return prefix
+}
+
+func joinPrefix(elem ...string) string {
+	result := path.Join(elem...)
+	if strings.HasSuffix(elem[len(elem)-1], "/") {
+		result += "/"
+	}
+	return result
 }
