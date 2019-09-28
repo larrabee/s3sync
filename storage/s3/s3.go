@@ -1,4 +1,4 @@
-package storage
+package s3
 
 import (
 	"bytes"
@@ -10,9 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/larrabee/ratelimit"
+	"github.com/larrabee/s3sync/storage"
 	"io"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 )
@@ -60,11 +60,11 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		sess.Config.Endpoint = aws.String(endpoint)
 	}
 
-	storage := S3Storage{
+	st := S3Storage{
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
-		prefix:        cleanPrefix(prefix),
+		prefix:        storage.CleanPrefix(prefix),
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
@@ -72,73 +72,73 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		rlBucket:      ratelimit.NewFakeBucket(),
 	}
 
-	return &storage
+	return &st
 }
 
 // WithContext add's context to storage.
-func (storage *S3Storage) WithContext(ctx context.Context) {
-	storage.ctx = ctx
+func (st *S3Storage) WithContext(ctx context.Context) {
+	st.ctx = ctx
 }
 
 // WithRateLimit set rate limit (bytes/sec) for storage.
-func (storage *S3Storage) WithRateLimit(limit int) error {
+func (st *S3Storage) WithRateLimit(limit int) error {
 	bucket, err := ratelimit.NewBucketWithRate(float64(limit), int64(limit))
 	if err != nil {
 		return err
 	}
-	storage.rlBucket = bucket
+	st.rlBucket = bucket
 	return nil
 }
 
 // List S3 bucket and send founded objects to chan.
-func (storage *S3Storage) List(output chan<- *Object) error {
+func (st *S3Storage) List(output chan<- *storage.Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
-			key = strings.Replace(key, storage.prefix, "", 1)
+			key = strings.Replace(key, st.prefix, "", 1)
 			key = strings.TrimPrefix(key, "/")
-			output <- &Object{
+			output <- &storage.Object{
 				Key:          &key,
-				ETag:         strongEtag(o.ETag),
+				ETag:         storage.StrongEtag(o.ETag),
 				Mtime:        o.LastModified,
 				StorageClass: o.StorageClass,
 			}
 		}
-		storage.listMarker = p.Marker
+		st.listMarker = p.Marker
 		return !lastPage // continue paging
 	}
 
 	for i := uint(0); ; i++ {
 		input := &s3.ListObjectsInput{
-			Bucket:       storage.awsBucket,
-			Prefix:       aws.String(storage.prefix),
-			MaxKeys:      aws.Int64(storage.keysPerReq),
+			Bucket:       st.awsBucket,
+			Prefix:       aws.String(st.prefix),
+			MaxKeys:      aws.Int64(st.keysPerReq),
 			EncodingType: aws.String(s3.EncodingTypeUrl),
-			Marker:       storage.listMarker,
+			Marker:       st.listMarker,
 		}
-		err := storage.awsSvc.ListObjectsPagesWithContext(storage.ctx, input, listObjectsFn)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 listing failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		err := st.awsSvc.ListObjectsPagesWithContext(st.ctx, input, listObjectsFn)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 listing failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
-			Log.Debugf("S3 listing failed with error: %s", err)
+		} else if (err != nil) && (i == st.retryCnt) {
+			storage.Log.Debugf("S3 listing failed with error: %s", err)
 			return err
 		} else {
-			Log.Debugf("Listing bucket finished")
+			storage.Log.Debugf("Listing bucket finished")
 			return err
 		}
 	}
 }
 
 // PutObject saves object to S3.
-func (storage *S3Storage) PutObject(obj *Object) error {
+func (st *S3Storage) PutObject(obj *storage.Object) error {
 	objReader := bytes.NewReader(*obj.Content)
-	rlReader := ratelimit.NewReadSeeker(objReader, storage.rlBucket)
+	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
 
 	input := &s3.PutObjectInput{
-		Bucket:             storage.awsBucket,
-		Key:                aws.String(joinPrefix(storage.prefix, *obj.Key)),
+		Bucket:             st.awsBucket,
+		Key:                aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
 		Body:               rlReader,
 		ContentType:        obj.ContentType,
 		ContentDisposition: obj.ContentDisposition,
@@ -151,12 +151,12 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 	}
 
 	for i := uint(0); ; i++ {
-		_, err := storage.awsSvc.PutObjectWithContext(storage.ctx, input)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 obj uploading failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		_, err := st.awsSvc.PutObjectWithContext(st.ctx, input)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
+		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
 
@@ -165,29 +165,29 @@ func (storage *S3Storage) PutObject(obj *Object) error {
 }
 
 // GetObjectContent read object content and metadata from S3.
-func (storage *S3Storage) GetObjectContent(obj *Object) error {
+func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 	input := &s3.GetObjectInput{
-		Bucket: storage.awsBucket,
-		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
+		Bucket: st.awsBucket,
+		Key:    aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
-		result, err := storage.awsSvc.GetObjectWithContext(storage.ctx, input)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 obj content downloading request failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj content downloading request failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
+		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
 
 		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
-		_, err = io.Copy(ratelimit.NewWriter(buf, storage.rlBucket), result.Body)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 obj content downloading failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		_, err = io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj content downloading failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
+		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
 
@@ -197,7 +197,7 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 		obj.ContentDisposition = result.ContentDisposition
 		obj.ContentEncoding = result.ContentEncoding
 		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = strongEtag(result.ETag)
+		obj.ETag = storage.StrongEtag(result.ETag)
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
@@ -208,19 +208,19 @@ func (storage *S3Storage) GetObjectContent(obj *Object) error {
 }
 
 // GetObjectMeta update object metadata from S3.
-func (storage *S3Storage) GetObjectMeta(obj *Object) error {
+func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
 	input := &s3.HeadObjectInput{
-		Bucket: storage.awsBucket,
-		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
+		Bucket: st.awsBucket,
+		Key:    aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
-		result, err := storage.awsSvc.HeadObjectWithContext(storage.ctx, input)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 obj meta downloading request failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj meta downloading request failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
+		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
 
@@ -228,7 +228,7 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 		obj.ContentDisposition = result.ContentDisposition
 		obj.ContentEncoding = result.ContentEncoding
 		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = strongEtag(result.ETag)
+		obj.ETag = storage.StrongEtag(result.ETag)
 		obj.Metadata = result.Metadata
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
@@ -239,19 +239,19 @@ func (storage *S3Storage) GetObjectMeta(obj *Object) error {
 }
 
 // DeleteObject remove object from S3.
-func (storage *S3Storage) DeleteObject(obj *Object) error {
+func (st *S3Storage) DeleteObject(obj *storage.Object) error {
 	input := &s3.DeleteObjectInput{
-		Bucket: storage.awsBucket,
-		Key:    aws.String(joinPrefix(storage.prefix, *obj.Key)),
+		Bucket: st.awsBucket,
+		Key:    aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
 	}
 
 	for i := uint(0); ; i++ {
-		_, err := storage.awsSvc.DeleteObjectWithContext(storage.ctx, input)
-		if (err != nil) && (i < storage.retryCnt) {
-			Log.Debugf("S3 obj removing failed with error: %s", err)
-			time.Sleep(storage.retryInterval)
+		_, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input)
+		if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj removing failed with error: %s", err)
+			time.Sleep(st.retryInterval)
 			continue
-		} else if (err != nil) && (i == storage.retryCnt) {
+		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
 
@@ -260,28 +260,6 @@ func (storage *S3Storage) DeleteObject(obj *Object) error {
 }
 
 // GetStorageType return storage type.
-func (storage *S3Storage) GetStorageType() Type {
-	return TypeS3
-}
-
-// strongEtag remove "W/" prefix from ETag.
-// In some cases S3 return ETag with "W/" prefix which mean that it not strong ETag.
-// For easier compare we remove this prefix.
-func strongEtag(s *string) *string {
-	etag := strings.TrimPrefix(*s, "W/")
-	return &etag
-}
-
-func cleanPrefix(prefix string) string {
-	prefix = strings.TrimPrefix(prefix, "/")
-	prefix = strings.TrimSuffix(prefix, "/")
-	return prefix
-}
-
-func joinPrefix(elem ...string) string {
-	result := path.Join(elem...)
-	if strings.HasSuffix(elem[len(elem)-1], "/") {
-		result += "/"
-	}
-	return result
+func (st *S3Storage) GetStorageType() storage.Type {
+	return storage.TypeS3
 }

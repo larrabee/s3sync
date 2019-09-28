@@ -4,11 +4,22 @@ builds:
 - main: ./cli/.
   env:
   - CGO_ENABLED=0
+  goos:
+    - darwin
+    - linux
+    - freebsd
+    - netbsd
+    - openbsd
+  goarch:
+      - amd64
 archive:
   replacements:
     darwin: MacOS
     linux: Linux
     windows: Windows
+    freebsd: FreeBSD
+    netbsd: NetBSD
+    openbsd: OpenBSD
     386: i386
     amd64: x86_64
 checksum:
