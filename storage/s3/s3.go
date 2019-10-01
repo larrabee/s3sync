@@ -64,7 +64,7 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, p
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
-		prefix:        storage.CleanPrefix(prefix),
+		prefix:        prefix,
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
 		retryInterval: retryInterval,
@@ -116,6 +116,7 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 			EncodingType: aws.String(s3.EncodingTypeUrl),
 			Marker:       st.listMarker,
 		}
+
 		err := st.awsSvc.ListObjectsPagesWithContext(st.ctx, input, listObjectsFn)
 		if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 listing failed with error: %s", err)
