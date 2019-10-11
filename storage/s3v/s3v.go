@@ -141,7 +141,7 @@ func (st *S3vStorage) PutObject(obj *storage.Object) error {
 
 	input := &s3.PutObjectInput{
 		Bucket:             st.awsBucket,
-		Key:                aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
+		Key:                aws.String(st.prefix + *obj.Key),
 		Body:               rlReader,
 		ContentType:        obj.ContentType,
 		ContentDisposition: obj.ContentDisposition,
@@ -171,7 +171,7 @@ func (st *S3vStorage) PutObject(obj *storage.Object) error {
 func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 	input := &s3.GetObjectInput{
 		Bucket:    st.awsBucket,
-		Key:       aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
+		Key:                aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
@@ -215,7 +215,7 @@ func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 func (st *S3vStorage) GetObjectMeta(obj *storage.Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket:    st.awsBucket,
-		Key:       aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
+		Key:                aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
@@ -247,7 +247,7 @@ func (st *S3vStorage) GetObjectMeta(obj *storage.Object) error {
 func (st *S3vStorage) DeleteObject(obj *storage.Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket:    st.awsBucket,
-		Key:       aws.String(storage.JoinPrefix(st.prefix, *obj.Key)),
+		Key:                aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
