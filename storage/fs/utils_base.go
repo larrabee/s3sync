@@ -9,10 +9,7 @@ import (
 
 func isNoXattrData(err error) bool {
 	if xErr, ok := err.(*xattr.Error); ok {
-		if xErr.Err == syscall.ENODATA {
-			return true
-		}
-		return false
+		return xErr.Err == syscall.ENODATA
 	}
 	return false
 }
