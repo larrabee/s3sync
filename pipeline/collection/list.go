@@ -11,5 +11,4 @@ var ListSourceStorage pipeline.StepFn = func(group *pipeline.Group, stepNum int,
 	if err != nil {
 		errChan <- err
 	}
-	return
 }
