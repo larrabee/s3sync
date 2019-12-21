@@ -1,11 +1,13 @@
 # Build in Docker container
 FROM golang:1.13 as builder
 
-COPY . /src/s3sync
+ENV CGO_ENABLED 0
 WORKDIR /src/s3sync
+COPY . ./
 RUN go mod vendor && \
-    go build -o /usr/local/bin/s3sync ./cli
+    go build -o s3sync ./cli
 
 # Create s3sync image
-FROM debian:10
-COPY --from=builder /usr/local/bin/s3sync /usr/local/bin/s3sync
+FROM scratch
+COPY --from=builder /src/s3sync/s3sync /s3sync
+ENTRYPOINT ["/s3sync"]
