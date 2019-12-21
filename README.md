@@ -1,6 +1,6 @@
 # S3Sync
 #### Really fast sync tool for S3
-[![Go Report Card](https://goreportcard.com/badge/github.com/larrabee/s3sync)](https://goreportcard.com/report/github.com/larrabee/s3sync) [![GoDoc](https://godoc.org/github.com/larrabee/s3sync?status.svg)](https://godoc.org/github.com/larrabee/s3sync)  
+[![Go Report Card](https://goreportcard.com/badge/github.com/larrabee/s3sync)](https://goreportcard.com/report/github.com/larrabee/s3sync) [![GoDoc](https://godoc.org/github.com/larrabee/s3sync?status.svg)](https://godoc.org/github.com/larrabee/s3sync) [![Build Status](https://travis-ci.org/larrabee/s3sync.svg?branch=master)](https://travis-ci.org/larrabee/s3sync)  
 
 ## Features
 * Multi-threaded file downloading/uploading
@@ -17,6 +17,11 @@
 Key future: very high speed.  
 Avg listing speed around 5k objects/sec for S3.  
 With 128 workers we get avg sync speed around 2k obj/sec (small objects 1-20 kb) (limited by 1Gb uplink).  
+
+## Limitations
+* Each object is loaded into RAM. So you need `<avg object size> * <workers count>` RAM.  
+  If you don't have enough RAM, you can use swap. A large (32-64 Gb) swap on SSD does not affect the tool performance.  
+  This happened because the tool was designed to synchronize billions of small files and optimized for this workload.
 
 ## Usage
 ```
