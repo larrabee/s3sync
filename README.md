@@ -109,6 +109,10 @@ You can use filters.
 
 ## Install
 Download binary from [Release page](https://github.com/larrabee/s3sync/releases).  
+Or use docker image [larrabee/s3sync](https://hub.docker.com/repository/docker/larrabee/s3sync) like this:  
+```
+docker run --rm -ti larrabee/s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared/test/ s3://shared_new
+```
 
 ## Building
 Minimum go version: **1.13**  
