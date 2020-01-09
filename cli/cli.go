@@ -69,6 +69,7 @@ type args struct {
 	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
 	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions"`
 	FSDisableXattr bool   `arg:"--fs-disable-xattr" help:"Disable FS xattr for storing metadata"`
+	FSListMode     uint8  `arg:"--fs-list-mode" help:"Controls error handling when listing FS. Sum of the values: 1 for ignoring all errors, 2 for ignoring NotFound errors, 4 for ignoring PermissionDenied errors"`
 	// Filters
 	FilterExt         []string `arg:"--filter-ext,separate" help:"Sync only files with given extensions"`
 	FilterExtNot      []string `arg:"--filter-not-ext,separate" help:"Skip files with given extensions"`

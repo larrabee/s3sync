@@ -18,7 +18,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
-		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, fsListBufSize, !cli.FSDisableXattr)
+		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, fsListBufSize, !cli.FSDisableXattr, cli.FSListMode)
 	}
 
 	switch cli.Target.Type {
@@ -27,7 +27,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
-		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr)
+		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr, cli.FSListMode)
 	}
 
 	if sourceStorage == nil {
