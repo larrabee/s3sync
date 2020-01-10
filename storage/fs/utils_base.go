@@ -17,13 +17,3 @@ func isNoXattrData(err error) bool {
 func isXattrSupported() bool {
 	return true
 }
-
-type ListErrMask uint8
-
-func (f ListErrMask) Has(flag ListErrMask) bool { return f&flag != 0 }
-
-const (
-	ListErrSkipAll ListErrMask = 1 << iota
-	ListErrSkipNotExist
-	ListErrSkipPermission
-)
