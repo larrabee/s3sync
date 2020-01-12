@@ -96,11 +96,13 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
 			key = strings.Replace(key, st.prefix, "", 1)
-			output <- &storage.Object{
-				Key:          &key,
-				ETag:         storage.StrongEtag(o.ETag),
-				Mtime:        o.LastModified,
-				StorageClass: o.StorageClass,
+			if string(key[len(key)-1]) != "/" {
+				output <- &storage.Object{
+					Key:          &key,
+					ETag:         storage.StrongEtag(o.ETag),
+					Mtime:        o.LastModified,
+					StorageClass: o.StorageClass,
+				}
 			}
 		}
 		st.listMarker = p.Marker
