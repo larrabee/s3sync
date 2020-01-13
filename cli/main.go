@@ -4,8 +4,6 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gosuri/uilive"
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
@@ -101,22 +99,23 @@ WaitLoop:
 				continue WaitLoop
 			}
 
-			if (cli.OnFail == onFailSkipMissing) || cli.OnFail == onFailSkip {
-				var aErr awserr.Error
-				if errors.As(err, &aErr) {
-					if (aErr.Code() == s3.ErrCodeNoSuchKey) || (aErr.Code() == "NotFound") {
-						var objErr *pipeline.ObjectError
-						if errors.As(err, &objErr) {
-							log.Warnf("Skip missing object: %s", *objErr.Object.Key)
-						} else {
-							log.Warnf("Skip missing object, err: %s", aErr.Error())
-						}
-						continue WaitLoop
-					}
+			if cli.ErrorHandlingMask.Has(storage.HandleErrNotExist) && isErrNotExist(err) {
+				var objErr *pipeline.ObjectError
+				if errors.As(err, &objErr) {
+					log.Warnf("Skip missing object: %s", *objErr.Object.Key)
+				} else {
+					log.Warnf("Skip missing object, err: %s", err)
 				}
-			}
-
-			if cli.OnFail == onFailSkip {
+				continue WaitLoop
+			} else if cli.ErrorHandlingMask.Has(storage.HandleErrPermission) && isErrPermission(err) {
+				var objErr *pipeline.ObjectError
+				if errors.As(err, &objErr) {
+					log.Warnf("Skip permission denied object: %s", *objErr.Object.Key)
+				} else {
+					log.Warnf("Skip permission denied object, err: %s", err)
+				}
+				continue WaitLoop
+			} else if cli.ErrorHandlingMask.Has(storage.HandleErrOther) {
 				var objErr *pipeline.ObjectError
 				if errors.As(err, &objErr) {
 					log.Warnf("Failed to sync object: %s, error: %s, skipping", *objErr.Object.Key, objErr.Err)
