@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/alexflint/go-arg v1.1.0
-	github.com/aws/aws-sdk-go v1.23.17
+	github.com/aws/aws-sdk-go v1.28.8
 	github.com/gosuri/uilive v0.0.3
 	github.com/karrick/godirwalk v1.10.12
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
