@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/karrick/godirwalk"
 	"github.com/larrabee/ratelimit"
 	"github.com/larrabee/s3sync/storage"
@@ -17,25 +18,27 @@ import (
 
 // FSStorage configuration.
 type FSStorage struct {
-	dir      string
-	filePerm os.FileMode
-	dirPerm  os.FileMode
-	bufSize  int
-	xattr    bool
-	ctx      context.Context
-	rlBucket ratelimit.Bucket
+	dir           string
+	filePerm      os.FileMode
+	dirPerm       os.FileMode
+	bufSize       int
+	xattr         bool
+	ctx           context.Context
+	rlBucket      ratelimit.Bucket
+	listErrorMask storage.ErrHandlingMask
 }
 
 // NewFSStorage return new configured FS storage.
 //
 // You should always create new storage with this constructor.
-func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool) *FSStorage {
+func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool, listErrorMode storage.ErrHandlingMask) *FSStorage {
 	st := FSStorage{
-		dir:      filepath.Clean(dir) + "/",
-		filePerm: filePerm,
-		dirPerm:  dirPerm,
-		xattr:    extendedMeta && isXattrSupported(),
-		rlBucket: ratelimit.NewFakeBucket(),
+		dir:           filepath.Clean(dir) + "/",
+		filePerm:      filePerm,
+		dirPerm:       dirPerm,
+		xattr:         extendedMeta && isXattrSupported(),
+		rlBucket:      ratelimit.NewFakeBucket(),
+		listErrorMask: listErrorMode,
 	}
 
 	if extendedMeta && !isXattrSupported() {
@@ -94,11 +97,28 @@ func (st *FSStorage) List(output chan<- *storage.Object) error {
 		}
 	}
 
+	listObjectsErrorFn := func(path string, err error) godirwalk.ErrorAction {
+
+		if st.listErrorMask.Has(storage.HandleErrPermission) && errors.Is(err, os.ErrPermission) {
+			storage.Log.Debugf("FS Listing: %s, err: Permission Denied, skipping", path)
+			return godirwalk.SkipNode
+		} else if st.listErrorMask.Has(storage.HandleErrNotExist) && errors.Is(err, os.ErrNotExist) {
+			storage.Log.Debugf("FS Listing: %s, err: No such file or directory, skipping", path)
+			return godirwalk.SkipNode
+		} else if st.listErrorMask.Has(storage.HandleErrOther) {
+			storage.Log.Debugf("FS Listing: %s, err: %s, skipping", path, err)
+			return godirwalk.SkipNode
+		}
+
+		return godirwalk.Halt
+	}
+
 	err := godirwalk.Walk(st.dir, &godirwalk.Options{
 		FollowSymbolicLinks: true,
 		Unsorted:            true,
 		ScratchBuffer:       make([]byte, st.bufSize),
 		Callback:            listObjectsFn,
+		ErrorCallback:       listObjectsErrorFn,
 	})
 	if err != nil {
 		return err

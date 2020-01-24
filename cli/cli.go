@@ -37,6 +37,7 @@ type argsParsed struct {
 	FSFilePerm         os.FileMode
 	FSDirPerm          os.FileMode
 	RateLimitBandwidth int
+	ErrorHandlingMask  storage.ErrHandlingMask
 }
 
 type connect struct {
@@ -78,13 +79,14 @@ type args struct {
 	FilterMtimeBefore int64    `arg:"--filter-before-mtime" help:"Sync only files modified before given unix timestamp"`
 	FilterModified    bool     `arg:"--filter-modified" help:"Sync only modified files"`
 	// Misc
-	Workers      uint   `arg:"-w" help:"Workers count"`
-	Debug        bool   `arg:"-d" help:"Show debug logging"`
-	SyncLog      bool   `arg:"--sync-log" help:"Show sync log"`
-	ShowProgress bool   `arg:"--sync-progress,-p" help:"Show sync progress"`
-	OnFail       string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing"`
-	DisableHTTP2 bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
-	ListBuffer   uint   `arg:"--list-buffer" help:"Size of list buffer"`
+	Workers           uint   `arg:"-w" help:"Workers count"`
+	Debug             bool   `arg:"-d" help:"Show debug logging"`
+	SyncLog           bool   `arg:"--sync-log" help:"Show sync log"`
+	ShowProgress      bool   `arg:"--sync-progress,-p" help:"Show sync progress"`
+	OnFail            string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead)"`
+	ErrorHandlingMask uint8  `arg:"--error-handling" help:"Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors"`
+	DisableHTTP2      bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
+	ListBuffer        uint   `arg:"--list-buffer" help:"Size of list buffer"`
 	// Rate Limit
 	RateLimitObjPerSec uint   `arg:"--ratelimit-objects" help:"Rate limit objects per second"`
 	RateLimitBandwidth string `arg:"--ratelimit-bandwidth" help:"Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G"`
@@ -115,6 +117,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	rawCli.FSFilePerm = "0644"
 	rawCli.ListBuffer = 1000
 	rawCli.RateLimitObjPerSec = 0
+	rawCli.ErrorHandlingMask = 0
 
 	p := arg.MustParse(&rawCli)
 	cli.args = rawCli
@@ -130,13 +133,16 @@ func GetCliArgs() (cli argsParsed, err error) {
 		p.Fail("--acl must be one of \"private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
 	}
 
+	cli.ErrorHandlingMask = storage.ErrHandlingMask(cli.args.ErrorHandlingMask)
 	switch cli.args.OnFail {
 	case "fatal":
 		cli.OnFail = onFailFatal
 	case "skip":
 		cli.OnFail = onFailSkip
+		cli.ErrorHandlingMask = ^storage.ErrHandlingMask(0)
 	case "skipmissing":
 		cli.OnFail = onFailSkipMissing
+		cli.ErrorHandlingMask.Add(storage.HandleErrNotExist)
 	default:
 		p.Fail("--on-fail must be one of \"fatal, skip, skipmissing\"")
 	}
