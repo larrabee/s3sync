@@ -5,8 +5,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/larrabee/ratelimit"
@@ -41,20 +40,14 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 	sess.Config.CredentialsChainVerboseErrors = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
 
-	if awsAccessKey != "" && awsSecretKey != "" {
-		cred := credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, "")
-		sess.Config.WithCredentials(cred)
-	} else {
-		cred := credentials.NewChainCredentials(
-			[]credentials.Provider{
-				&credentials.EnvProvider{},
-				&credentials.SharedCredentialsProvider{},
-				&ec2rolecreds.EC2RoleProvider{
-					Client: ec2metadata.New(sess),
-				},
-			})
-		sess.Config.WithCredentials(cred)
-	}
+	cred := credentials.NewChainCredentials(
+		[]credentials.Provider{
+			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: "", ProviderName: credentials.StaticProviderName}},
+			&credentials.EnvProvider{},
+			&credentials.SharedCredentialsProvider{},
+			defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
+		})
+	sess.Config.WithCredentials(cred)
 
 	if endpoint != "" {
 		sess.Config.Endpoint = aws.String(endpoint)
