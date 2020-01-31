@@ -34,7 +34,7 @@ type S3vStorage struct {
 // You should always create new storage with this constructor.
 //
 // It differs from S3 storage in that it can work with file versions.
-func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3vStorage {
+func NewS3vStorage(awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3vStorage {
 	sess := session.Must(session.NewSession())
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
 	sess.Config.CredentialsChainVerboseErrors = aws.Bool(true)
@@ -42,7 +42,7 @@ func NewS3vStorage(awsAccessKey, awsSecretKey, awsRegion, endpoint, bucketName, 
 
 	cred := credentials.NewChainCredentials(
 		[]credentials.Provider{
-			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: "", ProviderName: credentials.StaticProviderName}},
+			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: awsToken, ProviderName: credentials.StaticProviderName}},
 			&credentials.EnvProvider{},
 			&credentials.SharedCredentialsProvider{},
 			defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
