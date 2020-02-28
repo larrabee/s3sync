@@ -34,20 +34,23 @@ type S3Storage struct {
 //
 // You should always create new storage with this constructor.
 func NewS3Storage(awsAccessKey, awsSecretKey,awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3Storage {
-	sess := session.Must(session.NewSession())
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
 
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
 	sess.Config.CredentialsChainVerboseErrors = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
-
 	cred := credentials.NewChainCredentials(
 		[]credentials.Provider{
 			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: awsToken, ProviderName: credentials.StaticProviderName}},
 			&credentials.EnvProvider{},
 			&credentials.SharedCredentialsProvider{},
 			defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
+			//&stscreds.AssumeRoleProvider{TokenProvider: stscreds.StdinTokenProvider},
 		})
 	sess.Config.WithCredentials(cred)
+
 
 	if endpoint != "" {
 		sess.Config.Endpoint = aws.String(endpoint)
