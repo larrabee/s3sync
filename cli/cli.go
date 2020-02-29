@@ -107,8 +107,6 @@ func (args) Description() string {
 // GetCliArgs parse cli args, set default values, check input values and return argsParsed struct
 func GetCliArgs() (cli argsParsed, err error) {
 	rawCli := args{}
-	rawCli.SourceRegion = "us-east-1"
-	rawCli.TargetRegion = "us-east-1"
 	rawCli.Workers = 16
 	rawCli.S3Retry = 0
 	rawCli.S3RetryInterval = 0

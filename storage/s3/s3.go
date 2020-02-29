@@ -37,23 +37,25 @@ func NewS3Storage(awsAccessKey, awsSecretKey,awsToken, awsRegion, endpoint, buck
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
-
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
-	sess.Config.CredentialsChainVerboseErrors = aws.Bool(true)
-	sess.Config.Region = aws.String(awsRegion)
-	cred := credentials.NewChainCredentials(
-		[]credentials.Provider{
-			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: awsToken, ProviderName: credentials.StaticProviderName}},
-			&credentials.EnvProvider{},
-			&credentials.SharedCredentialsProvider{},
-			defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
-			//&stscreds.AssumeRoleProvider{TokenProvider: stscreds.StdinTokenProvider},
-		})
-	sess.Config.WithCredentials(cred)
 
+	if awsAccessKey != "" || awsSecretKey != "" {
+		sess.Config.Credentials = credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, awsToken)
+	} else if _, err := sess.Config.Credentials.Get(); err != nil {
+		storage.Log.Debugf("Failed to load credentials from default config, ")
+		cred := credentials.NewChainCredentials(
+			[]credentials.Provider{
+				&credentials.EnvProvider{},
+				defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
+			})
+		sess.Config.Credentials = cred
+	}
 
 	if endpoint != "" {
 		sess.Config.Endpoint = aws.String(endpoint)
+	}
+	if awsRegion != "" {
+		sess.Config.Region = aws.String(awsRegion)
 	}
 
 	st := S3Storage{
