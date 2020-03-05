@@ -3,9 +3,12 @@ package s3v
 import (
 	"bytes"
 	"context"
+	"errors"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/larrabee/ratelimit"
@@ -35,22 +38,29 @@ type S3vStorage struct {
 //
 // It differs from S3 storage in that it can work with file versions.
 func NewS3vStorage(awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3vStorage {
-	sess := session.Must(session.NewSession())
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
-	sess.Config.CredentialsChainVerboseErrors = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
 
-	cred := credentials.NewChainCredentials(
-		[]credentials.Provider{
-			&credentials.StaticProvider{Value: credentials.Value{AccessKeyID: awsAccessKey, SecretAccessKey: awsSecretKey, SessionToken: awsToken, ProviderName: credentials.StaticProviderName}},
-			&credentials.EnvProvider{},
-			&credentials.SharedCredentialsProvider{},
-			defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
-		})
-	sess.Config.WithCredentials(cred)
+	if awsAccessKey != "" || awsSecretKey != "" {
+		sess.Config.Credentials = credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, awsToken)
+	} else if _, err := sess.Config.Credentials.Get(); err != nil {
+		storage.Log.Debugf("Failed to load credentials from default config")
+		cred := credentials.NewChainCredentials(
+			[]credentials.Provider{
+				&credentials.EnvProvider{},
+				defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
+			})
+		sess.Config.Credentials = cred
+	}
 
 	if endpoint != "" {
 		sess.Config.Endpoint = aws.String(endpoint)
+	}
+	if aws.StringValue(sess.Config.Region) == "" {
+		sess.Config.Region = aws.String("us-east-1")
 	}
 
 	st := S3vStorage{
@@ -112,15 +122,17 @@ func (st *S3vStorage) List(output chan<- *storage.Object) error {
 			VersionIdMarker: st.listMarker,
 		}
 		err := st.awsSvc.ListObjectVersionsPagesWithContext(st.ctx, input, listObjectsFn)
-		if (err != nil) && (i < st.retryCnt) {
+		if err == nil {
+			storage.Log.Debugf("Listing bucket finished")
+			return nil
+		} else if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 listing failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
 		} else if (err != nil) && (i == st.retryCnt) {
 			storage.Log.Debugf("S3 listing failed with error: %s", err)
-			return err
-		} else {
-			storage.Log.Debugf("Listing bucket finished")
 			return err
 		}
 	}
@@ -128,6 +140,7 @@ func (st *S3vStorage) List(output chan<- *storage.Object) error {
 
 // PutObject saves object to S3.
 // PutObject ignore VersionId, it always save object as latest version.
+// PutObject saves object to S3.
 func (st *S3vStorage) PutObject(obj *storage.Object) error {
 	objReader := bytes.NewReader(*obj.Content)
 	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
@@ -148,16 +161,18 @@ func (st *S3vStorage) PutObject(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		_, err := st.awsSvc.PutObjectWithContext(st.ctx, input)
-		if (err != nil) && (i < st.retryCnt) {
+		if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
 		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
-
-		return nil
 	}
+
+	return nil
 }
 
 // GetObjectContent read object content and metadata from S3.
@@ -170,7 +185,9 @@ func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
-		if (err != nil) && (i < st.retryCnt) {
+		if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj content downloading request failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
@@ -180,7 +197,9 @@ func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 
 		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
 		_, err = io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body)
-		if (err != nil) && (i < st.retryCnt) {
+		if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj content downloading failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
@@ -214,7 +233,9 @@ func (st *S3vStorage) GetObjectMeta(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
-		if (err != nil) && (i < st.retryCnt) {
+		if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj meta downloading request failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
@@ -246,19 +267,41 @@ func (st *S3vStorage) DeleteObject(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		_, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input)
-		if (err != nil) && (i < st.retryCnt) {
+		if err == nil {
+			break
+		} else if isAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj removing failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
 		} else if (err != nil) && (i == st.retryCnt) {
 			return err
 		}
-
-		return nil
 	}
+	return nil
 }
 
 // GetStorageType return storage type.
 func (st *S3vStorage) GetStorageType() storage.Type {
 	return storage.TypeS3Versioned
+}
+
+func isAwsContextCanceled(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	var aErr awserr.Error
+	if ok := errors.As(err, &aErr); ok && aErr.OrigErr() == context.Canceled {
+		return true
+	} else if ok && aErr.Code() == request.CanceledErrorCode {
+		return true
+	}
+
+	return false
 }

@@ -52,14 +52,14 @@ type args struct {
 	Source         string `arg:"positional"`
 	SourceKey      string `arg:"--sk" help:"Source AWS key"`
 	SourceSecret   string `arg:"--ss" help:"Source AWS session secret"`
-	SourceToken   string `arg:"--st" help:"Source AWS token"`
+	SourceToken    string `arg:"--st" help:"Source AWS token"`
 	SourceRegion   string `arg:"--sr" help:"Source AWS Region"`
 	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint"`
 	// Target config
 	Target         string `arg:"positional"`
 	TargetKey      string `arg:"--tk" help:"Target AWS key"`
 	TargetSecret   string `arg:"--ts" help:"Target AWS secret"`
-	TargetToken   string `arg:"--tt" help:"Target AWS session token"`
+	TargetToken    string `arg:"--tt" help:"Target AWS session token"`
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
 	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
 	// S3 config
