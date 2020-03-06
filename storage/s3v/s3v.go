@@ -3,12 +3,9 @@ package s3v
 import (
 	"bytes"
 	"context"
-	"errors"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/larrabee/ratelimit"
@@ -125,7 +122,7 @@ func (st *S3vStorage) List(output chan<- *storage.Object) error {
 		if err == nil {
 			storage.Log.Debugf("Listing bucket finished")
 			return nil
-		} else if isAwsContextCanceled(err) {
+		} else if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 listing failed with error: %s", err)
@@ -161,7 +158,7 @@ func (st *S3vStorage) PutObject(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		_, err := st.awsSvc.PutObjectWithContext(st.ctx, input)
-		if isAwsContextCanceled(err) {
+		if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
@@ -185,7 +182,7 @@ func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
-		if isAwsContextCanceled(err) {
+		if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj content downloading request failed with error: %s", err)
@@ -197,7 +194,7 @@ func (st *S3vStorage) GetObjectContent(obj *storage.Object) error {
 
 		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
 		_, err = io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body)
-		if isAwsContextCanceled(err) {
+		if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj content downloading failed with error: %s", err)
@@ -233,7 +230,7 @@ func (st *S3vStorage) GetObjectMeta(obj *storage.Object) error {
 
 	for i := uint(0); ; i++ {
 		result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
-		if isAwsContextCanceled(err) {
+		if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj meta downloading request failed with error: %s", err)
@@ -269,7 +266,7 @@ func (st *S3vStorage) DeleteObject(obj *storage.Object) error {
 		_, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input)
 		if err == nil {
 			break
-		} else if isAwsContextCanceled(err) {
+		} else if storage.IsAwsContextCanceled(err) {
 			return err
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj removing failed with error: %s", err)
@@ -280,28 +277,4 @@ func (st *S3vStorage) DeleteObject(obj *storage.Object) error {
 		}
 	}
 	return nil
-}
-
-// GetStorageType return storage type.
-func (st *S3vStorage) GetStorageType() storage.Type {
-	return storage.TypeS3Versioned
-}
-
-func isAwsContextCanceled(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	var aErr awserr.Error
-	if ok := errors.As(err, &aErr); ok && aErr.OrigErr() == context.Canceled {
-		return true
-	} else if ok && aErr.Code() == request.CanceledErrorCode {
-		return true
-	}
-
-	return false
 }
