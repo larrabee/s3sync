@@ -47,5 +47,4 @@ type Storage interface {
 	GetObjectContent(obj *Object) error
 	GetObjectMeta(obj *Object) error
 	DeleteObject(obj *Object) error
-	GetStorageType() Type
 }
