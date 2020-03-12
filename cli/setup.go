@@ -129,7 +129,13 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		AddWorkers: cli.Workers,
 	})
 
-	if cli.S3Acl != "" {
+	if cli.S3Acl == "copy" {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:       "LoadObjACL",
+			Fn:         collection.LoadObjectACL,
+			AddWorkers: cli.Workers,
+		})
+	} else if cli.S3Acl != "" {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:   "ACLUpdater",
 			Fn:     collection.ACLUpdater,
@@ -150,6 +156,15 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		Fn:         collection.UploadObjectData,
 		AddWorkers: cli.Workers,
 	})
+
+	// FS Storage does not required PutObjectACL call. It's saved with other meta on prev step.
+	if cli.S3Acl == "copy" && cli.Target.Type != storage.TypeFS {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:       "UploadObjACL",
+			Fn:         collection.UploadObjectACL,
+			AddWorkers: cli.Workers,
+		})
+	}
 
 	if cli.SyncLog {
 		syncGroup.AddPipeStep(pipeline.Step{

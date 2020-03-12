@@ -158,6 +158,33 @@ func (st *FSStorage) PutObject(obj *storage.Object) error {
 	return nil
 }
 
+// PutObjectACL saves object ACL to S3.
+func (st *FSStorage) PutObjectACL(obj *storage.Object) error {
+	destPath := filepath.Join(st.dir, *obj.Key)
+	err := os.MkdirAll(filepath.Dir(destPath), st.dirPerm)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(destPath, os.O_WRONLY, st.filePerm)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if st.xattr {
+		data, err := json.Marshal(obj)
+		if err != nil {
+			return err
+		}
+
+		if err := xattr.FSet(f, "user.s3sync.meta", data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // GetObjectContent read object content and metadata from FS.
 func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 	destPath := filepath.Join(st.dir, *obj.Key)
@@ -211,6 +238,10 @@ func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 	}
 
 	return nil
+}
+
+func (st *FSStorage) GetObjectACL(obj *storage.Object) error {
+	return st.GetObjectMeta(obj)
 }
 
 // GetObjectMeta update object metadata from FS.
