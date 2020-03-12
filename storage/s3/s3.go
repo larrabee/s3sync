@@ -134,10 +134,12 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 }
 
 // PutObject saves object to S3.
+// PutObject ignore VersionId, it always save object as latest version.
 func (st *S3Storage) PutObject(obj *storage.Object) error {
 	objReader := bytes.NewReader(*obj.Content)
 	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
 
+	//storage.Log.Debugf("Uploading file: %s", *obj.Key)
 	input := &s3.PutObjectInput{
 		Bucket:             st.awsBucket,
 		Key:                aws.String(st.prefix + *obj.Key),
@@ -156,8 +158,38 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		_, err := st.awsSvc.PutObjectWithContext(st.ctx, input)
 		if storage.IsAwsContextCanceled(err) {
 			return err
+		} else if err == nil {
+			break
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
+			time.Sleep(st.retryInterval)
+			continue
+		} else if (err != nil) && (i == st.retryCnt) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// PutObject saves object ACL to S3.
+func (st *S3Storage) PutObjectACL(obj *storage.Object) error {
+	input := &s3.PutObjectAclInput{
+		Bucket:              st.awsBucket,
+		Key:                 aws.String(st.prefix + *obj.Key),
+		VersionId:           obj.VersionId,
+		AccessControlPolicy: obj.AccessControlPolicy,
+		ACL:                 obj.ACL,
+	}
+
+	for i := uint(0); ; i++ {
+		_, err := st.awsSvc.PutObjectAclWithContext(st.ctx, input)
+		if storage.IsAwsContextCanceled(err) {
+			return err
+		} else if err == nil {
+			break
+		} else if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 ACL uploading failed with error: %s", err)
 			time.Sleep(st.retryInterval)
 			continue
 		} else if (err != nil) && (i == st.retryCnt) {
@@ -211,6 +243,35 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 		obj.Mtime = result.LastModified
 		obj.CacheControl = result.CacheControl
 		obj.StorageClass = result.StorageClass
+
+		return nil
+	}
+}
+
+// GetObjectACL read object ACL from S3.
+func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
+	input := &s3.GetObjectAclInput{
+		Bucket:    st.awsBucket,
+		Key:       aws.String(st.prefix + *obj.Key),
+		VersionId: obj.VersionId,
+	}
+
+	for i := uint(0); ; i++ {
+		result, err := st.awsSvc.GetObjectAclWithContext(st.ctx, input)
+		if storage.IsAwsContextCanceled(err) {
+			return err
+		} else if (err != nil) && (i < st.retryCnt) {
+			storage.Log.Debugf("S3 obj ACL downloading request failed with error: %s", err)
+			time.Sleep(st.retryInterval)
+			continue
+		} else if (err != nil) && (i == st.retryCnt) {
+			return err
+		}
+
+		obj.AccessControlPolicy = &s3.AccessControlPolicy{
+			Grants: result.Grants,
+			Owner:  result.Owner,
+		}
 
 		return nil
 	}

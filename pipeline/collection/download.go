@@ -29,3 +29,15 @@ var LoadObjectData pipeline.StepFn = func(group *pipeline.Group, stepNum int, in
 		}
 	}
 }
+
+// LoadObjectACL accepts an input object and downloads its ACL.
+var LoadObjectACL pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	for obj := range input {
+		err := group.Source.GetObjectACL(obj)
+		if err != nil {
+			errChan <- &pipeline.ObjectError{Object: obj, Err: err}
+		} else {
+			output <- obj
+		}
+	}
+}

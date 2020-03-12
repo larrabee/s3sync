@@ -19,21 +19,12 @@ var (
 	date    = "unknown"
 )
 
-type onFailAction int
-
-const (
-	onFailFatal onFailAction = iota
-	onFailSkip
-	onFailSkipMissing
-)
-
 // Parsed CLI args with embedded fields
 type argsParsed struct {
 	args
 	Source             connect
 	Target             connect
 	S3RetryInterval    time.Duration
-	OnFail             onFailAction
 	FSFilePerm         os.FileMode
 	FSDirPerm          os.FileMode
 	RateLimitBandwidth int
@@ -110,7 +101,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	rawCli.Workers = 16
 	rawCli.S3Retry = 0
 	rawCli.S3RetryInterval = 0
-	rawCli.S3Acl = "private"
+	rawCli.S3Acl = ""
 	rawCli.S3KeysPerReq = 1000
 	rawCli.OnFail = "fatal"
 	rawCli.FSDirPerm = "0755"
@@ -122,26 +113,24 @@ func GetCliArgs() (cli argsParsed, err error) {
 	p := arg.MustParse(&rawCli)
 	cli.args = rawCli
 
+	cli.args.S3Acl = strings.ToLower(cli.args.S3Acl)
 	switch cli.args.S3Acl {
-	case "":
+	case "", "copy":
 		break
 	case "private", "public-read", "public-read-write", "aws-exec-read":
 		break
 	case "authenticated-read", "bucket-owner-read", "bucket-owner-full-control":
 		break
 	default:
-		p.Fail("--acl must be one of \"private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
+		p.Fail("--acl must be one of \"copy, private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
 	}
 
 	cli.ErrorHandlingMask = storage.ErrHandlingMask(cli.args.ErrorHandlingMask)
 	switch cli.args.OnFail {
 	case "fatal":
-		cli.OnFail = onFailFatal
 	case "skip":
-		cli.OnFail = onFailSkip
 		cli.ErrorHandlingMask = ^storage.ErrHandlingMask(0)
 	case "skipmissing":
-		cli.OnFail = onFailSkipMissing
 		cli.ErrorHandlingMask.Add(storage.HandleErrNotExist)
 	default:
 		p.Fail("--on-fail must be one of \"fatal, skip, skipmissing\"")
