@@ -16,15 +16,3 @@ var UploadObjectData pipeline.StepFn = func(group *pipeline.Group, stepNum int, 
 		}
 	}
 }
-
-// UploadObjectACL read objects from input, put its ACL to Target storage and send object to next pipeline steps.
-var UploadObjectACL pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
-	for obj := range input {
-		err := group.Target.PutObjectACL(obj)
-		if err != nil {
-			errChan <- &pipeline.ObjectError{Object: obj, Err: err}
-		} else {
-			output <- obj
-		}
-	}
-}
