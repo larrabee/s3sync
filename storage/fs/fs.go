@@ -10,6 +10,7 @@ import (
 	"github.com/larrabee/s3sync/storage"
 	"github.com/pkg/xattr"
 	"io"
+	"io/ioutil"
 	"mime"
 	"os"
 	"path/filepath"
@@ -158,33 +159,6 @@ func (st *FSStorage) PutObject(obj *storage.Object) error {
 	return nil
 }
 
-// PutObjectACL saves object ACL to S3.
-func (st *FSStorage) PutObjectACL(obj *storage.Object) error {
-	destPath := filepath.Join(st.dir, *obj.Key)
-	err := os.MkdirAll(filepath.Dir(destPath), st.dirPerm)
-	if err != nil {
-		return err
-	}
-	f, err := os.OpenFile(destPath, os.O_WRONLY, st.filePerm)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if st.xattr {
-		data, err := json.Marshal(obj)
-		if err != nil {
-			return err
-		}
-
-		if err := xattr.FSet(f, "user.s3sync.meta", data); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // GetObjectContent read object content and metadata from FS.
 func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 	destPath := filepath.Join(st.dir, *obj.Key)
@@ -194,47 +168,15 @@ func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 	}
 	defer f.Close()
 
-	fileInfo, err := f.Stat()
+	data, err := ioutil.ReadAll(ratelimit.NewReader(f, st.rlBucket))
 	if err != nil {
 		return err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0, fileInfo.Size()))
-	if _, err := io.Copy(buf, ratelimit.NewReader(f, st.rlBucket)); err != nil {
-		return err
-	}
-
-	data := buf.Bytes()
-
 	obj.Content = &data
 
-	if st.xattr {
-		if data, err := xattr.FGet(f, "user.s3sync.meta"); err == nil {
-			err := json.Unmarshal(data, obj)
-			if err != nil {
-				return err
-			}
-		} else {
-			switch err.(type) {
-			case *xattr.Error:
-				if isNoXattrData(err) {
-					contentType := mime.TypeByExtension(filepath.Ext(destPath))
-					Mtime := fileInfo.ModTime()
-					obj.ContentType = &contentType
-					obj.Mtime = &Mtime
-					break
-				} else {
-					return err
-				}
-			default:
-				return err
-			}
-		}
-	} else {
-		contentType := mime.TypeByExtension(filepath.Ext(destPath))
-		Mtime := fileInfo.ModTime()
-		obj.ContentType = &contentType
-		obj.Mtime = &Mtime
+	if err := st.GetObjectMeta(obj); err != nil {
+		return err
 	}
 
 	return nil
@@ -299,9 +241,4 @@ func (st *FSStorage) DeleteObject(obj *storage.Object) error {
 	}
 
 	return nil
-}
-
-// GetStorageType return storage type.
-func (st *FSStorage) GetStorageType() storage.Type {
-	return storage.TypeFS
 }

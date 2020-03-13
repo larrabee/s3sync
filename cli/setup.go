@@ -36,8 +36,10 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 		return fmt.Errorf("target storage is nil")
 	}
 
+	// Apply context only for source storage. All data modification ops in Target storage should be executed.
 	sourceStorage.WithContext(ctx)
-	targetStorage.WithContext(ctx)
+	//targetStorage.WithContext(ctx)
+
 	if cli.RateLimitBandwidth > 0 {
 		err := sourceStorage.WithRateLimit(cli.RateLimitBandwidth)
 		if err != nil {
@@ -78,7 +80,8 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		Fn:         collection.LoadObjectMeta,
 		AddWorkers: cli.Workers,
 	}
-	if (cli.Source.Type == storage.TypeFS) && ((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0) || cli.FilterModified) {
+	if (cli.Source.Type == storage.TypeFS) &&
+		((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0) || cli.FilterModified) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
 	} else if (len(cli.FilterCT) > 0) || (len(cli.FilterCTNot) > 0) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
@@ -129,7 +132,7 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		AddWorkers: cli.Workers,
 	})
 
-	if cli.S3Acl == "copy" {
+	if cli.S3Acl == "copy" && cli.Source.Type == storage.TypeS3 {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:       "LoadObjACL",
 			Fn:         collection.LoadObjectACL,
@@ -156,15 +159,6 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		Fn:         collection.UploadObjectData,
 		AddWorkers: cli.Workers,
 	})
-
-	// FS Storage does not required PutObjectACL call. It's saved with other meta on prev step.
-	if cli.S3Acl == "copy" && cli.Target.Type != storage.TypeFS {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name:       "UploadObjACL",
-			Fn:         collection.UploadObjectACL,
-			AddWorkers: cli.Workers,
-		})
-	}
 
 	if cli.SyncLog {
 		syncGroup.AddPipeStep(pipeline.Step{

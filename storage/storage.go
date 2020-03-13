@@ -46,7 +46,6 @@ type Storage interface {
 	WithRateLimit(limit int) error
 	List(ch chan<- *Object) error
 	PutObject(object *Object) error
-	PutObjectACL(object *Object) error
 	GetObjectContent(obj *Object) error
 	GetObjectMeta(obj *Object) error
 	GetObjectACL(obj *Object) error
