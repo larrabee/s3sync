@@ -14,7 +14,7 @@
 * Rate limiting by bandwidth
 * Flexible filters by extension, Content-Type, ETag and object mtime
 
-Key future: very high speed.  
+Key feature: very high speed.  
 Avg listing speed around 5k objects/sec for S3.  
 With 128 workers we get avg sync speed around 2k obj/sec (small objects 1-20 kb) (limited by 1Gb uplink).  
 
@@ -28,7 +28,7 @@ With 128 workers we get avg sync speed around 2k obj/sec (small objects 1-20 kb)
 >> s3sync --help
 Really fast sync tool for S3
 VersionId: dev, commit: none, built at: unknown
-Usage: cli [--sk SK] [--ss SS] [--sr SR] [--se SE] [--tk TK] [--ts TS] [--tr TR] [--te TE] [--s3-retry S3-RETRY] [--s3-retry-sleep S3-RETRY-SLEEP] [--s3-acl S3-ACL] [--s3-storage-class S3-STORAGE-CLASS] [--s3-keys-per-req S3-KEYS-PER-REQ] [--fs-file-perm FS-FILE-PERM] [--fs-dir-perm FS-DIR-PERM] [--fs-disable-xattr] [--filter-ext FILTER-EXT] [--filter-not-ext FILTER-NOT-EXT] [--filter-ct FILTER-CT] [--filter-not-ct FILTER-NOT-CT] [--filter-after-mtime FILTER-AFTER-MTIME] [--filter-before-mtime FILTER-BEFORE-MTIME] [--filter-modified] [--workers WORKERS] [--debug] [--sync-log] [--sync-progress] [--on-fail ON-FAIL] [--error-handling ERROR-HANDLING] [--disable-http2] [--list-buffer LIST-BUFFER] [--ratelimit-objects RATELIMIT-OBJECTS] [--ratelimit-bandwidth RATELIMIT-BANDWIDTH] SOURCE TARGET
+Usage: s3sync [--sk SK] [--ss SS] [--st ST] [--sr SR] [--se SE] [--tk TK] [--ts TS] [--tt TT] [--tr TR] [--te TE] [--s3-retry S3-RETRY] [--s3-retry-sleep S3-RETRY-SLEEP] [--s3-acl S3-ACL] [--s3-storage-class S3-STORAGE-CLASS] [--s3-keys-per-req S3-KEYS-PER-REQ] [--fs-file-perm FS-FILE-PERM] [--fs-dir-perm FS-DIR-PERM] [--fs-disable-xattr] [--filter-ext FILTER-EXT] [--filter-not-ext FILTER-NOT-EXT] [--filter-ct FILTER-CT] [--filter-not-ct FILTER-NOT-CT] [--filter-after-mtime FILTER-AFTER-MTIME] [--filter-before-mtime FILTER-BEFORE-MTIME] [--filter-modified] [--workers WORKERS] [--debug] [--sync-log] [--sync-progress] [--on-fail ON-FAIL] [--error-handling ERROR-HANDLING] [--disable-http2] [--list-buffer LIST-BUFFER] [--ratelimit-objects RATELIMIT-OBJECTS] [--ratelimit-bandwidth RATELIMIT-BANDWIDTH] SOURCE TARGET
 
 Positional arguments:
   SOURCE
@@ -36,17 +36,19 @@ Positional arguments:
 
 Options:
   --sk SK                Source AWS key
-  --ss SS                Source AWS secret
-  --sr SR                Source AWS Region [default: us-east-1]
+  --ss SS                Source AWS session secret
+  --st ST                Source AWS token
+  --sr SR                Source AWS Region
   --se SE                Source AWS Endpoint
   --tk TK                Target AWS key
   --ts TS                Target AWS secret
-  --tr TR                Target AWS Region [default: us-east-1]
+  --tt TT                Target AWS session token
+  --tr TR                Target AWS Region
   --te TE                Target AWS Endpoint
   --s3-retry S3-RETRY    Max numbers of retries to sync file
   --s3-retry-sleep S3-RETRY-SLEEP
                          Sleep interval (sec) between sync retries on error
-  --s3-acl S3-ACL        S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control [default: private]
+  --s3-acl S3-ACL        S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control
   --s3-storage-class S3-STORAGE-CLASS
                          S3 Storage Class for uploaded files.
   --s3-keys-per-req S3-KEYS-PER-REQ
@@ -77,7 +79,7 @@ Options:
   --on-fail ON-FAIL, -f ON-FAIL
                          Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead) [default: fatal]
   --error-handling ERROR-HANDLING
-                         Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors.
+                         Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors
   --disable-http2        Disable HTTP2 for http client
   --list-buffer LIST-BUFFER
                          Size of list buffer [default: 1000]
