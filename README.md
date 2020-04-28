@@ -138,3 +138,6 @@ You can easy use s3sync in your application. See example in `cli/` folder.
 
 ## License
 GPLv3
+
+## Notes
+s3sync is a non-destructive one-way sync: it does not delete files in the destination or source paths that are out of sync.
