@@ -74,7 +74,10 @@ var FilterObjectsByCT pipeline.StepFn = func(group *pipeline.Group, stepNum int,
 		if ok {
 			flag := false
 			for _, ct := range cfg {
-				if *obj.ContentType == ct {
+				if obj.ContentType == nil && ct == "" {
+					flag = true
+					break
+				} else if obj.ContentType != nil && *obj.ContentType == ct {
 					flag = true
 					break
 				}
@@ -100,7 +103,10 @@ var FilterObjectsByCTNot pipeline.StepFn = func(group *pipeline.Group, stepNum i
 		if ok {
 			flag := false
 			for _, ct := range cfg {
-				if *obj.ContentType == ct {
+				if obj.ContentType == nil && ct == "" {
+					flag = true
+					break
+				} else if obj.ContentType != nil && *obj.ContentType == ct {
 					flag = true
 					break
 				}
