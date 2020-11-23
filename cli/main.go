@@ -19,7 +19,6 @@ var log = logrus.New()
 var live *uilive.Writer
 
 const (
-	fsListBufSize   = 32 * 1024 * 1024
 	goThreadsPerCPU = 8
 )
 

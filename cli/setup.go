@@ -8,6 +8,7 @@ import (
 	"github.com/larrabee/s3sync/storage"
 	"github.com/larrabee/s3sync/storage/fs"
 	"github.com/larrabee/s3sync/storage/s3"
+	"os"
 )
 
 func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsParsed) error {
@@ -18,7 +19,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
-		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, fsListBufSize, !cli.FSDisableXattr, cli.ErrorHandlingMask)
+		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, os.Getpagesize()*256*32, !cli.FSDisableXattr, cli.ErrorHandlingMask)
 	}
 
 	switch cli.Target.Type {

@@ -47,7 +47,7 @@ func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extend
 	}
 
 	if bufSize < godirwalk.MinimumScratchBufferSize {
-		st.bufSize = godirwalk.DefaultScratchBufferSize
+		st.bufSize = godirwalk.MinimumScratchBufferSize
 	} else {
 		st.bufSize = bufSize
 	}
@@ -120,6 +120,7 @@ func (st *FSStorage) List(output chan<- *storage.Object) error {
 		ScratchBuffer:       make([]byte, st.bufSize),
 		Callback:            listObjectsFn,
 		ErrorCallback:       listObjectsErrorFn,
+		AllowNonDirectory:   true,
 	})
 	if err != nil {
 		return err
