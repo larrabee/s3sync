@@ -157,7 +157,7 @@ var FilterObjectsByMtimeBefore pipeline.StepFn = func(group *pipeline.Group, ste
 }
 
 // FilterObjectsModified accepts an input object and checks if it matches the filter
-// This filter gets object meta from target storage and compare object ETags. If Etags are equal object will be skipped
+// This filter read object meta from target storage and compare object ETags. If Etags are equal object will be skipped
 // For FS storage xattr support are required for proper work.
 var FilterObjectsModified pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
 	for obj := range input {
@@ -168,6 +168,42 @@ var FilterObjectsModified pipeline.StepFn = func(group *pipeline.Group, stepNum 
 		err := group.Target.GetObjectMeta(destObj)
 		if (err != nil) || (obj.ETag == nil || destObj.ETag == nil) || (*obj.ETag != *destObj.ETag) {
 			output <- obj
+		}
+	}
+}
+
+// FilterObjectsExist accepts an input object and checks if it exist in target storage
+// This filter read object meta from target storage. Object will be processed only when it exist in target storage.
+var FilterObjectsExist pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	for obj := range input {
+		destObj := &storage.Object{
+			Key: obj.Key,
+		}
+		err := group.Target.GetObjectMeta(destObj)
+		if err == nil {
+			output <- obj
+		} else if storage.IsErrNotExist(err) {
+			continue
+		} else {
+			errChan <- &pipeline.ObjectError{Object: obj, Err: err}
+		}
+	}
+}
+
+// FilterObjectsExist accepts an input object and checks if it exist in target storage
+// This filter read object meta from target storage. Object will be processed only when it doesn't exist in target storage.
+var FilterObjectsExistNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	for obj := range input {
+		destObj := &storage.Object{
+			Key: obj.Key,
+		}
+		err := group.Target.GetObjectMeta(destObj)
+		if err == nil {
+			continue
+		} else if storage.IsErrNotExist(err) {
+			output <- obj
+		} else {
+			errChan <- &pipeline.ObjectError{Object: obj, Err: err}
 		}
 	}
 }

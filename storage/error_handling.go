@@ -1,13 +1,15 @@
-package main
+package storage
 
 import (
+	"context"
 	"errors"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"os"
 )
 
-func isErrNotExist(err error) bool {
+func IsErrNotExist(err error) bool {
 	var aErr awserr.Error
 	if errors.As(err, &aErr) {
 		if (aErr.Code() == s3.ErrCodeNoSuchKey) || (aErr.Code() == "NotFound") {
@@ -21,7 +23,7 @@ func isErrNotExist(err error) bool {
 	return false
 }
 
-func isErrPermission(err error) bool {
+func IsErrPermission(err error) bool {
 	var aErr awserr.Error
 	if errors.As(err, &aErr) {
 		if aErr.Code() == "AccessDenied" {
@@ -32,5 +34,24 @@ func isErrPermission(err error) bool {
 	if errors.Is(err, os.ErrPermission) {
 		return true
 	}
+	return false
+}
+
+func IsAwsContextCanceled(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	var aErr awserr.Error
+	if ok := errors.As(err, &aErr); ok && aErr.OrigErr() == context.Canceled {
+		return true
+	} else if ok && aErr.Code() == request.CanceledErrorCode {
+		return true
+	}
+
 	return false
 }

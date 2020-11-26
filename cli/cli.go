@@ -71,6 +71,8 @@ type args struct {
 	FilterMtimeAfter  int64    `arg:"--filter-after-mtime" help:"Sync only files modified after given unix timestamp"`
 	FilterMtimeBefore int64    `arg:"--filter-before-mtime" help:"Sync only files modified before given unix timestamp"`
 	FilterModified    bool     `arg:"--filter-modified" help:"Sync only modified files"`
+	FilterExist       bool     `arg:"--filter-exist" help:"Sync only files, that exist in target storage'"`
+	FilterExistNot    bool     `arg:"--filter-not-exist" help:"Sync only files, that doesn't exist in target storage'"`
 	// Misc
 	Workers           uint   `arg:"-w" help:"Workers count"`
 	Debug             bool   `arg:"-d" help:"Show debug logging"`

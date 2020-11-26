@@ -127,6 +127,20 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
+	if cli.FilterExist {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsExist",
+			Fn:   collection.FilterObjectsExist,
+		})
+	}
+
+	if cli.FilterExistNot {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsExistNot",
+			Fn:   collection.FilterObjectsExistNot,
+		})
+	}
+
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:       "LoadObjData",
 		Fn:         collection.LoadObjectData,

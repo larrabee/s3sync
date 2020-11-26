@@ -1,10 +1,6 @@
 package storage
 
 import (
-	"context"
-	"errors"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"strings"
 )
 
@@ -30,22 +26,3 @@ const (
 	HandleErrPermission
 	HandleErrOther = 64
 )
-
-func IsAwsContextCanceled(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	var aErr awserr.Error
-	if ok := errors.As(err, &aErr); ok && aErr.OrigErr() == context.Canceled {
-		return true
-	} else if ok && aErr.Code() == request.CanceledErrorCode {
-		return true
-	}
-
-	return false
-}

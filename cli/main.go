@@ -98,7 +98,7 @@ WaitLoop:
 				continue WaitLoop
 			}
 
-			if cli.ErrorHandlingMask.Has(storage.HandleErrNotExist) && isErrNotExist(err) {
+			if cli.ErrorHandlingMask.Has(storage.HandleErrNotExist) && storage.IsErrNotExist(err) {
 				var objErr *pipeline.ObjectError
 				if errors.As(err, &objErr) {
 					log.Warnf("Skip missing object: %s", *objErr.Object.Key)
@@ -106,7 +106,7 @@ WaitLoop:
 					log.Warnf("Skip missing object, err: %s", err)
 				}
 				continue WaitLoop
-			} else if cli.ErrorHandlingMask.Has(storage.HandleErrPermission) && isErrPermission(err) {
+			} else if cli.ErrorHandlingMask.Has(storage.HandleErrPermission) && storage.IsErrPermission(err) {
 				var objErr *pipeline.ObjectError
 				if errors.As(err, &objErr) {
 					log.Warnf("Skip permission denied object: %s", *objErr.Object.Key)
