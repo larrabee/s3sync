@@ -77,6 +77,7 @@ type args struct {
 	Workers           uint   `arg:"-w" help:"Workers count"`
 	Debug             bool   `arg:"-d" help:"Show debug logging"`
 	SyncLog           bool   `arg:"--sync-log" help:"Show sync log"`
+	SyncLogFormat     string `arg:"--sync-log-format" help:"Format of sync log. Possible values: json"`
 	ShowProgress      bool   `arg:"--sync-progress,-p" help:"Show sync progress"`
 	OnFail            string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead)"`
 	ErrorHandlingMask uint8  `arg:"--error-handling" help:"Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors"`
@@ -111,6 +112,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	rawCli.ListBuffer = 1000
 	rawCli.RateLimitObjPerSec = 0
 	rawCli.ErrorHandlingMask = 0
+	rawCli.SyncLogFormat = ""
 
 	p := arg.MustParse(&rawCli)
 	cli.args = rawCli
@@ -136,6 +138,12 @@ func GetCliArgs() (cli argsParsed, err error) {
 		cli.ErrorHandlingMask.Add(storage.HandleErrNotExist)
 	default:
 		p.Fail("--on-fail must be one of \"fatal, skip, skipmissing\"")
+	}
+
+	switch cli.args.SyncLogFormat {
+	case "json":
+	default:
+		p.Fail("--sync-log-format must be one of \"json\"")
 	}
 
 	if rate, ok := parseBandwith(cli.args.RateLimitBandwidth); ok {

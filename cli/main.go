@@ -49,6 +49,9 @@ func init() {
 	if cli.Debug {
 		log.SetLevel(logrus.DebugLevel)
 	}
+	if cli.SyncLogFormat == "json" {
+		log.SetFormatter(&logrus.JSONFormatter{})
+	}
 	pipeline.Log = log
 	storage.Log = log
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/larrabee/s3sync/pipeline"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -26,20 +27,40 @@ func printLiveStats(ctx context.Context, syncGroup *pipeline.Group) {
 func printFinalStats(syncGroup *pipeline.Group, status syncStatus) {
 	dur := time.Since(syncGroup.StartTime).Seconds()
 	for _, val := range syncGroup.GetStepsInfo() {
-		log.Infof("%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+		log.WithFields(logrus.Fields{
+			"stepNum":    val.Num,
+			"stepName": val.Name,
+			"InputObj": val.Stats.Input,
+			"OutputObj": val.Stats.Output,
+			"ErrorObj": val.Stats.Error,
+			"InputObjSpeed": float64(val.Stats.Input)/dur,
+			"OutputObjSpeed": float64(val.Stats.Output)/dur,
+		}).Info("Pipeline step finished")
 	}
-	log.Infof("Duration: %s", time.Since(syncGroup.StartTime).String())
+	log.WithFields(logrus.Fields{
+		"durationSec":    time.Since(syncGroup.StartTime).Seconds(),
+	}).Infof("Duration: %s", time.Since(syncGroup.StartTime).String())
 
 	switch status {
 	case syncStatusOk:
-		log.Infof("Sync Done")
+		log.WithFields(logrus.Fields{
+			"status":    status,
+		}).Infof("Sync Done")
 	case syncStatusFailed:
-		log.Error("Sync Failed")
+		log.WithFields(logrus.Fields{
+			"status":    status,
+		}).Error("Sync Failed")
 	case syncStatusAborted:
-		log.Warnf("Sync Aborted")
+		log.WithFields(logrus.Fields{
+			"status":    status,
+		}).Warnf("Sync Aborted")
 	case syncStatusConfError:
-		log.Errorf("Sync Configuration error")
+		log.WithFields(logrus.Fields{
+			"status":    status,
+		}).Errorf("Sync Configuration error")
 	default:
-		log.Warnf("Sync Unknown status")
+		log.WithFields(logrus.Fields{
+			"status":    status,
+		}).Warnf("Sync Unknown status")
 	}
 }

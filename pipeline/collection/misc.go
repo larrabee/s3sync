@@ -26,7 +26,11 @@ var Logger pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-ch
 	}
 	for obj := range input {
 		if ok {
-			cfg.Infof("Key: %s", *obj.Key)
+			cfg.WithFields(logrus.Fields{
+				"key":    *obj.Key,
+				"size": len(*obj.Content),
+				"Content-Type": *obj.ContentType,
+			}).Infof("Sync file")
 			output <- obj
 		}
 	}
