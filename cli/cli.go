@@ -141,7 +141,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	}
 
 	switch cli.args.SyncLogFormat {
-	case "json":
+	case "json", "":
 	default:
 		p.Fail("--sync-log-format must be one of \"json\"")
 	}
