@@ -162,6 +162,9 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		} else if (err != nil) && (i < st.retryCnt) {
 			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
 			time.Sleep(st.retryInterval)
+			if _, err := rlReader.Seek(0,0); err != nil {
+				return err
+			}
 			continue
 		} else if (err != nil) && (i == st.retryCnt) {
 			return err
