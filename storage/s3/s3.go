@@ -33,12 +33,13 @@ type S3Storage struct {
 // NewS3Storage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewS3Storage(awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryInterval time.Duration) *S3Storage {
+func NewS3Storage(awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration) *S3Storage {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
+	sess.Config.Retryer = &Retryer{RetryCnt: retryCnt, RetryDelay: retryDelay}
 
 	if awsAccessKey != "" || awsSecretKey != "" {
 		sess.Config.Credentials = credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, awsToken)
@@ -66,7 +67,7 @@ func NewS3Storage(awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, buc
 		prefix:        prefix,
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
-		retryInterval: retryInterval,
+		retryInterval: retryDelay,
 		ctx:           context.TODO(),
 		rlBucket:      ratelimit.NewFakeBucket(),
 	}
@@ -107,30 +108,20 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 		return !lastPage // continue paging
 	}
 
-	for i := uint(0); ; i++ {
-		input := &s3.ListObjectsInput{
-			Bucket:       st.awsBucket,
-			Prefix:       aws.String(st.prefix),
-			MaxKeys:      aws.Int64(st.keysPerReq),
-			EncodingType: aws.String(s3.EncodingTypeUrl),
-			Marker:       st.listMarker,
-		}
-
-		err := st.awsSvc.ListObjectsPagesWithContext(st.ctx, input, listObjectsFn)
-		if err == nil {
-			storage.Log.Debugf("Listing bucket finished")
-			return nil
-		} else if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 listing failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			storage.Log.Debugf("S3 listing failed with error: %s", err)
-			return err
-		}
+	input := &s3.ListObjectsInput{
+		Bucket:       st.awsBucket,
+		Prefix:       aws.String(st.prefix),
+		MaxKeys:      aws.Int64(st.keysPerReq),
+		EncodingType: aws.String(s3.EncodingTypeUrl),
+		Marker:       st.listMarker,
 	}
+
+	if err := st.awsSvc.ListObjectsPagesWithContext(st.ctx, input, listObjectsFn); err != nil {
+		return err
+	}
+	storage.Log.Debugf("Listing bucket finished")
+	return nil
+
 }
 
 // PutObject saves object to S3.
@@ -153,22 +144,8 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		StorageClass:       obj.StorageClass,
 	}
 
-	for i := uint(0); ; i++ {
-		_, err := st.awsSvc.PutObjectWithContext(st.ctx, input)
-		if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if err == nil {
-			break
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj uploading failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			if _, err := rlReader.Seek(0,0); err != nil {
-				return err
-			}
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
+	if _, err := st.awsSvc.PutObjectWithContext(st.ctx, input); err != nil {
+		return err
 	}
 
 	if obj.AccessControlPolicy != nil {
@@ -178,19 +155,8 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 			AccessControlPolicy: obj.AccessControlPolicy,
 		}
 
-		for i := uint(0); ; i++ {
-			_, err := st.awsSvc.PutObjectAclWithContext(st.ctx, inputAcl)
-			if storage.IsAwsContextCanceled(err) {
-				return err
-			} else if err == nil {
-				break
-			} else if (err != nil) && (i < st.retryCnt) {
-				storage.Log.Debugf("S3 ACL uploading failed with error: %s", err)
-				time.Sleep(st.retryInterval)
-				continue
-			} else if (err != nil) && (i == st.retryCnt) {
-				return err
-			}
+		if _, err := st.awsSvc.PutObjectAclWithContext(st.ctx, inputAcl); err != nil {
+			return err
 		}
 	}
 
@@ -205,44 +171,29 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	for i := uint(0); ; i++ {
-		result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
-		if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj content downloading request failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
-
-		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
-		_, err = io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body)
-		if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj content downloading failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
-
-		data := buf.Bytes()
-		obj.Content = &data
-		obj.ContentType = result.ContentType
-		obj.ContentDisposition = result.ContentDisposition
-		obj.ContentEncoding = result.ContentEncoding
-		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = storage.StrongEtag(result.ETag)
-		obj.Metadata = result.Metadata
-		obj.Mtime = result.LastModified
-		obj.CacheControl = result.CacheControl
-		obj.StorageClass = result.StorageClass
-
-		return nil
+	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
+	if err != nil {
+		return err
 	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
+	if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body); err != nil {
+		return err
+	}
+
+	data := buf.Bytes()
+	obj.Content = &data
+	obj.ContentType = result.ContentType
+	obj.ContentDisposition = result.ContentDisposition
+	obj.ContentEncoding = result.ContentEncoding
+	obj.ContentLanguage = result.ContentLanguage
+	obj.ETag = storage.StrongEtag(result.ETag)
+	obj.Metadata = result.Metadata
+	obj.Mtime = result.LastModified
+	obj.CacheControl = result.CacheControl
+	obj.StorageClass = result.StorageClass
+
+	return nil
 }
 
 // GetObjectACL read object ACL from S3.
@@ -253,25 +204,17 @@ func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	for i := uint(0); ; i++ {
-		result, err := st.awsSvc.GetObjectAclWithContext(st.ctx, input)
-		if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj ACL downloading request failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
-
-		obj.AccessControlPolicy = &s3.AccessControlPolicy{
-			Grants: result.Grants,
-			Owner:  result.Owner,
-		}
-
-		return nil
+	result, err := st.awsSvc.GetObjectAclWithContext(st.ctx, input)
+	if err != nil {
+		return err
 	}
+
+	obj.AccessControlPolicy = &s3.AccessControlPolicy{
+		Grants: result.Grants,
+		Owner:  result.Owner,
+	}
+
+	return nil
 }
 
 // GetObjectMeta update object metadata from S3.
@@ -282,30 +225,22 @@ func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	for i := uint(0); ; i++ {
-		result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
-		if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj meta downloading request failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
-
-		obj.ContentType = result.ContentType
-		obj.ContentDisposition = result.ContentDisposition
-		obj.ContentEncoding = result.ContentEncoding
-		obj.ContentLanguage = result.ContentLanguage
-		obj.ETag = storage.StrongEtag(result.ETag)
-		obj.Metadata = result.Metadata
-		obj.Mtime = result.LastModified
-		obj.CacheControl = result.CacheControl
-		obj.StorageClass = result.StorageClass
-
-		return nil
+	result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
+	if err != nil {
+		return err
 	}
+
+	obj.ContentType = result.ContentType
+	obj.ContentDisposition = result.ContentDisposition
+	obj.ContentEncoding = result.ContentEncoding
+	obj.ContentLanguage = result.ContentLanguage
+	obj.ETag = storage.StrongEtag(result.ETag)
+	obj.Metadata = result.Metadata
+	obj.Mtime = result.LastModified
+	obj.CacheControl = result.CacheControl
+	obj.StorageClass = result.StorageClass
+
+	return nil
 }
 
 // DeleteObject remove object from S3.
@@ -316,19 +251,8 @@ func (st *S3Storage) DeleteObject(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	for i := uint(0); ; i++ {
-		_, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input)
-		if err == nil {
-			break
-		} else if storage.IsAwsContextCanceled(err) {
-			return err
-		} else if (err != nil) && (i < st.retryCnt) {
-			storage.Log.Debugf("S3 obj removing failed with error: %s", err)
-			time.Sleep(st.retryInterval)
-			continue
-		} else if (err != nil) && (i == st.retryCnt) {
-			return err
-		}
+	if _, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input); err != nil {
+		return err
 	}
 	return nil
 }

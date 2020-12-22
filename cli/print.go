@@ -28,39 +28,39 @@ func printFinalStats(syncGroup *pipeline.Group, status syncStatus) {
 	dur := time.Since(syncGroup.StartTime).Seconds()
 	for _, val := range syncGroup.GetStepsInfo() {
 		log.WithFields(logrus.Fields{
-			"stepNum":    val.Num,
-			"stepName": val.Name,
-			"InputObj": val.Stats.Input,
-			"OutputObj": val.Stats.Output,
-			"ErrorObj": val.Stats.Error,
-			"InputObjSpeed": float64(val.Stats.Input)/dur,
-			"OutputObjSpeed": float64(val.Stats.Output)/dur,
+			"stepNum":        val.Num,
+			"stepName":       val.Name,
+			"InputObj":       val.Stats.Input,
+			"OutputObj":      val.Stats.Output,
+			"ErrorObj":       val.Stats.Error,
+			"InputObjSpeed":  float64(val.Stats.Input) / dur,
+			"OutputObjSpeed": float64(val.Stats.Output) / dur,
 		}).Info("Pipeline step finished")
 	}
 	log.WithFields(logrus.Fields{
-		"durationSec":    time.Since(syncGroup.StartTime).Seconds(),
+		"durationSec": time.Since(syncGroup.StartTime).Seconds(),
 	}).Infof("Duration: %s", time.Since(syncGroup.StartTime).String())
 
 	switch status {
 	case syncStatusOk:
 		log.WithFields(logrus.Fields{
-			"status":    status,
+			"status": status,
 		}).Infof("Sync Done")
 	case syncStatusFailed:
 		log.WithFields(logrus.Fields{
-			"status":    status,
+			"status": status,
 		}).Error("Sync Failed")
 	case syncStatusAborted:
 		log.WithFields(logrus.Fields{
-			"status":    status,
+			"status": status,
 		}).Warnf("Sync Aborted")
 	case syncStatusConfError:
 		log.WithFields(logrus.Fields{
-			"status":    status,
+			"status": status,
 		}).Errorf("Sync Configuration error")
 	default:
 		log.WithFields(logrus.Fields{
-			"status":    status,
+			"status": status,
 		}).Warnf("Sync Unknown status")
 	}
 }
