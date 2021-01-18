@@ -41,6 +41,7 @@ type connect struct {
 type args struct {
 	// Source config
 	Source         string `arg:"positional"`
+	SourceNoSign   bool   `arg:"--sn" help:"Don't sign request to source AWS for anonymous access"`
 	SourceKey      string `arg:"--sk" help:"Source AWS key"`
 	SourceSecret   string `arg:"--ss" help:"Source AWS session secret"`
 	SourceToken    string `arg:"--st" help:"Source AWS token"`
@@ -48,6 +49,7 @@ type args struct {
 	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint"`
 	// Target config
 	Target         string `arg:"positional"`
+	TargetNoSign   bool   `arg:"--tn" help:"Don't sign request to target AWS for anonymous access"`
 	TargetKey      string `arg:"--tk" help:"Target AWS key"`
 	TargetSecret   string `arg:"--ts" help:"Target AWS secret"`
 	TargetToken    string `arg:"--tt" help:"Target AWS session token"`
