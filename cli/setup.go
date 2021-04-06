@@ -104,6 +104,20 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
+	if cli.FilterDirs {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "FilterObjectsDirs",
+			Fn:     collection.FilterObjectsDirs,
+		})
+	}
+
+	if cli.FilterDirsNot {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "FilterObjectsDirsNot",
+			Fn:     collection.FilterObjectsDirsNot,
+		})
+	}
+
 	if len(cli.FilterCT) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:   "FilterObjByCT",

@@ -4,6 +4,7 @@ import (
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
 	"path/filepath"
+	"strings"
 )
 
 // FilterObjectsByExt accepts an input object and checks if it matches the filter.
@@ -204,6 +205,26 @@ var FilterObjectsExistNot pipeline.StepFn = func(group *pipeline.Group, stepNum 
 			output <- obj
 		} else {
 			errChan <- &pipeline.ObjectError{Object: obj, Err: err}
+		}
+	}
+}
+
+// FilterObjectsDirs accepts an input object and checks if ends with "/"
+// Accept only files  ended with "/"
+var FilterObjectsDirs pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	for obj := range input {
+		if strings.HasSuffix(*obj.Key, "/") {
+			output <- obj
+		}
+	}
+}
+
+// FilterObjectsDirsNot accepts an input object and checks if ends with "/"
+// Accept only files NOT ended with "/"
+var FilterObjectsDirsNot pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	for obj := range input {
+		if !strings.HasSuffix(*obj.Key, "/") {
+			output <- obj
 		}
 	}
 }
