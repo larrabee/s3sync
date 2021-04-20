@@ -17,6 +17,8 @@ import (
 	"strings"
 )
 
+const tempFileSuffixLen = 8
+
 // FSStorage configuration.
 type FSStorage struct {
 	dir           string
@@ -27,12 +29,13 @@ type FSStorage struct {
 	ctx           context.Context
 	rlBucket      ratelimit.Bucket
 	listErrorMask storage.ErrHandlingMask
+	atomicWrite   bool
 }
 
 // NewFSStorage return new configured FS storage.
 //
 // You should always create new storage with this constructor.
-func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool, listErrorMode storage.ErrHandlingMask) *FSStorage {
+func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extendedMeta bool, listErrorMode storage.ErrHandlingMask, atomicWrite bool) *FSStorage {
 	st := FSStorage{
 		dir:           filepath.Clean(dir) + "/",
 		filePerm:      filePerm,
@@ -130,7 +133,12 @@ func (st *FSStorage) List(output chan<- *storage.Object) error {
 
 // PutObject saves object to FS.
 func (st *FSStorage) PutObject(obj *storage.Object) error {
-	destPath := filepath.Join(st.dir, *obj.Key)
+	originalPath := filepath.Join(st.dir, *obj.Key)
+	destPath := originalPath
+	if st.atomicWrite {
+		destPath += ".temp." + storage.GetInsecureRandString(tempFileSuffixLen)
+	}
+
 	err := os.MkdirAll(filepath.Dir(destPath), st.dirPerm)
 	if err != nil {
 		return err
@@ -153,6 +161,12 @@ func (st *FSStorage) PutObject(obj *storage.Object) error {
 		}
 
 		if err := xattr.FSet(f, "user.s3sync.meta", data); err != nil {
+			return err
+		}
+	}
+
+	if st.atomicWrite {
+		if err := os.Rename(destPath, originalPath); err != nil {
 			return err
 		}
 	}

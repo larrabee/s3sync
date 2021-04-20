@@ -28,18 +28,20 @@ With 128 workers we get avg sync speed around 2k obj/sec (small objects 1-20 kb)
 >> s3sync --help
 Really fast sync tool for S3
 VersionId: dev, commit: none, built at: unknown
-Usage: s3sync [--sk SK] [--ss SS] [--st ST] [--sr SR] [--se SE] [--tk TK] [--ts TS] [--tt TT] [--tr TR] [--te TE] [--s3-retry S3-RETRY] [--s3-retry-sleep S3-RETRY-SLEEP] [--s3-acl S3-ACL] [--s3-storage-class S3-STORAGE-CLASS] [--s3-keys-per-req S3-KEYS-PER-REQ] [--fs-file-perm FS-FILE-PERM] [--fs-dir-perm FS-DIR-PERM] [--fs-disable-xattr] [--filter-ext FILTER-EXT] [--filter-not-ext FILTER-NOT-EXT] [--filter-ct FILTER-CT] [--filter-not-ct FILTER-NOT-CT] [--filter-after-mtime FILTER-AFTER-MTIME] [--filter-before-mtime FILTER-BEFORE-MTIME] [--filter-modified] [--workers WORKERS] [--debug] [--sync-log] [--sync-progress] [--on-fail ON-FAIL] [--error-handling ERROR-HANDLING] [--disable-http2] [--list-buffer LIST-BUFFER] [--ratelimit-objects RATELIMIT-OBJECTS] [--ratelimit-bandwidth RATELIMIT-BANDWIDTH] SOURCE TARGET
+Usage: cli [--sn] [--sk SK] [--ss SS] [--st ST] [--sr SR] [--se SE] [--tn] [--tk TK] [--ts TS] [--tt TT] [--tr TR] [--te TE] [--s3-retry S3-RETRY] [--s3-retry-sleep S3-RETRY-SLEEP] [--s3-acl S3-ACL] [--s3-storage-class S3-STORAGE-CLASS] [--s3-keys-per-req S3-KEYS-PER-REQ] [--fs-file-perm FS-FILE-PERM] [--fs-dir-perm FS-DIR-PERM] [--fs-disable-xattr] [--fs-atomic-write] [--filter-ext FILTER-EXT] [--filter-not-ext FILTER-NOT-EXT] [--filter-ct FILTER-CT] [--filter-not-ct FILTER-NOT-CT] [--filter-after-mtime FILTER-AFTER-MTIME] [--filter-before-mtime FILTER-BEFORE-MTIME] [--filter-modified] [--filter-exist] [--filter-not-exist] [--filter-dirs] [--filter-not-dirs] [--workers WORKERS] [--debug] [--sync-log] [--sync-log-format SYNC-LOG-FORMAT] [--sync-progress] [--on-fail ON-FAIL] [--error-handling ERROR-HANDLING] [--disable-http2] [--list-buffer LIST-BUFFER] [--ratelimit-objects RATELIMIT-OBJECTS] [--ratelimit-bandwidth RATELIMIT-BANDWIDTH] SOURCE TARGET
 
 Positional arguments:
   SOURCE
   TARGET
 
 Options:
+  --sn                   Don't sign request to source AWS for anonymous access
   --sk SK                Source AWS key
   --ss SS                Source AWS session secret
   --st ST                Source AWS token
   --sr SR                Source AWS Region
   --se SE                Source AWS Endpoint
+  --tn                   Don't sign request to target AWS for anonymous access
   --tk TK                Target AWS key
   --ts TS                Target AWS secret
   --tt TT                Target AWS session token
@@ -58,6 +60,7 @@ Options:
   --fs-dir-perm FS-DIR-PERM
                          Dir permissions [default: 0755]
   --fs-disable-xattr     Disable FS xattr for storing metadata
+  --fs-atomic-write      Enable FS atomic writes. New files will be written to temp file and renamed
   --filter-ext FILTER-EXT
                          Sync only files with given extensions
   --filter-not-ext FILTER-NOT-EXT
@@ -71,10 +74,16 @@ Options:
   --filter-before-mtime FILTER-BEFORE-MTIME
                          Sync only files modified before given unix timestamp
   --filter-modified      Sync only modified files
+  --filter-exist         Sync only files, that exist in target storage
+  --filter-not-exist     Sync only files, that doesn't exist in target storage
+  --filter-dirs          Sync only files, that ends with slash (/)
+  --filter-not-dirs      Skip files that ends with slash (/)
   --workers WORKERS, -w WORKERS
                          Workers count [default: 16]
   --debug, -d            Show debug logging
   --sync-log             Show sync log
+  --sync-log-format SYNC-LOG-FORMAT
+                         Format of sync log. Possible values: json
   --sync-progress, -p    Show sync progress
   --on-fail ON-FAIL, -f ON-FAIL
                          Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead) [default: fatal]

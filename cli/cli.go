@@ -65,6 +65,7 @@ type args struct {
 	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
 	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions"`
 	FSDisableXattr bool   `arg:"--fs-disable-xattr" help:"Disable FS xattr for storing metadata"`
+	FSAtomicWrite  bool   `arg:"--fs-atomic-write" help:"Enable FS atomic writes. New files will be written to temp file and renamed"`
 	// Filters
 	FilterExt         []string `arg:"--filter-ext,separate" help:"Sync only files with given extensions"`
 	FilterExtNot      []string `arg:"--filter-not-ext,separate" help:"Skip files with given extensions"`
