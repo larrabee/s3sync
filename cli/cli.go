@@ -203,10 +203,10 @@ func parseConn(cStr string) (conn connect, err error) {
 		conn.Type = storage.TypeS3
 		conn.Bucket = u.Host
 		conn.Path = strings.TrimPrefix(u.Path, "/")
-  case "s3s":
-    conn.Type = storage.TypeS3Stream
-    conn.Bucket = u.Host
-    conn.Path = strings.TrimPrefix(u.Path, "/")
+	case "s3s":
+		conn.Type = storage.TypeS3Stream
+		conn.Bucket = u.Host
+		conn.Path = strings.TrimPrefix(u.Path, "/")
 	case "fs":
 		conn.Type = storage.TypeFS
 		conn.Path = strings.TrimPrefix(cStr, "fs://")
