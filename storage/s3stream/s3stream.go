@@ -1,9 +1,8 @@
-package s3
+package s3stream
 
 import (
-	"bytes"
 	"context"
-	"io"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -13,12 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/larrabee/ratelimit"
 	"github.com/larrabee/s3sync/storage"
+	s3backend "github.com/larrabee/s3sync/storage/s3"
 )
 
-// S3Storage configuration.
-type S3Storage struct {
+// S3StreamStorage configuration.
+type S3StreamStorage struct {
 	awsSvc        *s3.S3
 	awsSession    *session.Session
 	awsBucket     *string
@@ -29,18 +30,19 @@ type S3Storage struct {
 	ctx           context.Context
 	listMarker    *string
 	rlBucket      ratelimit.Bucket
+  uploader      *s3manager.Uploader
 }
 
 // NewS3Storage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration) *S3Storage {
+func NewS3StreamStorage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration) *S3StreamStorage {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
-	sess.Config.Retryer = &Retryer{RetryCnt: retryCnt, RetryDelay: retryDelay}
+	sess.Config.Retryer = &s3backend.Retryer{RetryCnt: retryCnt, RetryDelay: retryDelay}
 
 	if awsNoSign {
 		sess.Config.Credentials = credentials.AnonymousCredentials
@@ -63,7 +65,9 @@ func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegio
 		sess.Config.Region = aws.String("us-east-1")
 	}
 
-	st := S3Storage{
+  uploader := s3manager.NewUploader(sess)
+
+	st := S3StreamStorage{
 		awsBucket:     &bucketName,
 		awsSession:    sess,
 		awsSvc:        s3.New(sess),
@@ -73,18 +77,19 @@ func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegio
 		retryInterval: retryDelay,
 		ctx:           context.TODO(),
 		rlBucket:      ratelimit.NewFakeBucket(),
+    uploader:      uploader,
 	}
 
 	return &st
 }
 
 // WithContext add's context to storage.
-func (st *S3Storage) WithContext(ctx context.Context) {
+func (st *S3StreamStorage) WithContext(ctx context.Context) {
 	st.ctx = ctx
 }
 
 // WithRateLimit set rate limit (bytes/sec) for storage.
-func (st *S3Storage) WithRateLimit(limit int) error {
+func (st *S3StreamStorage) WithRateLimit(limit int) error {
 	bucket, err := ratelimit.NewBucketWithRate(float64(limit), int64(limit))
 	if err != nil {
 		return err
@@ -94,7 +99,7 @@ func (st *S3Storage) WithRateLimit(limit int) error {
 }
 
 // List S3 bucket and send founded objects to chan.
-func (st *S3Storage) List(output chan<- *storage.Object) error {
+func (st *S3StreamStorage) List(output chan<- *storage.Object) error {
 	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
@@ -129,11 +134,14 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 
 // PutObject saves object to S3.
 // PutObject ignore VersionId, it always save object as latest version.
-func (st *S3Storage) PutObject(obj *storage.Object) error {
-	objReader := bytes.NewReader(*obj.Content)
-	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
+func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
+  if (obj.ContentStream == nil) {
+    return errors.New("object has no contentStream");
+  }
 
-	input := &s3.PutObjectInput{
+  rlReader := ratelimit.NewReadCloser(obj.ContentStream, st.rlBucket);
+  defer rlReader.Close()
+	input := &s3manager.UploadInput{
 		Bucket:             st.awsBucket,
 		Key:                aws.String(st.prefix + *obj.Key),
 		Body:               rlReader,
@@ -147,9 +155,10 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		StorageClass:       obj.StorageClass,
 	}
 
-	if _, err := st.awsSvc.PutObjectWithContext(st.ctx, input); err != nil {
-		return err
-	}
+  if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {
+    return err
+  }
+
 
 	if obj.AccessControlPolicy != nil {
 		inputAcl := &s3.PutObjectAclInput{
@@ -167,7 +176,7 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 }
 
 // GetObjectContent read object content and metadata from S3.
-func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
+func (st *S3StreamStorage) GetObjectContent(obj *storage.Object) error {
 	input := &s3.GetObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
@@ -179,13 +188,8 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 		return err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
-	if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body); err != nil {
-		return err
-	}
-
-	data := buf.Bytes()
-	obj.Content = &data
+  obj.Content = nil
+	obj.ContentStream = result.Body
 	obj.ContentType = result.ContentType
   obj.ContentLength = result.ContentLength
 	obj.ContentDisposition = result.ContentDisposition
@@ -201,7 +205,7 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 }
 
 // GetObjectACL read object ACL from S3.
-func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
+func (st *S3StreamStorage) GetObjectACL(obj *storage.Object) error {
 	input := &s3.GetObjectAclInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
@@ -222,7 +226,7 @@ func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
 }
 
 // GetObjectMeta update object metadata from S3.
-func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
+func (st *S3StreamStorage) GetObjectMeta(obj *storage.Object) error {
 	input := &s3.HeadObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
@@ -248,7 +252,7 @@ func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
 }
 
 // DeleteObject remove object from S3.
-func (st *S3Storage) DeleteObject(obj *storage.Object) error {
+func (st *S3StreamStorage) DeleteObject(obj *storage.Object) error {
 	input := &s3.DeleteObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),

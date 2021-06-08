@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"github.com/alexflint/go-arg"
-	"github.com/larrabee/s3sync/storage"
-	"github.com/mattn/go-isatty"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/alexflint/go-arg"
+	"github.com/larrabee/s3sync/storage"
+	"github.com/mattn/go-isatty"
 )
 
 var (
@@ -202,6 +203,10 @@ func parseConn(cStr string) (conn connect, err error) {
 		conn.Type = storage.TypeS3
 		conn.Bucket = u.Host
 		conn.Path = strings.TrimPrefix(u.Path, "/")
+  case "s3s":
+    conn.Type = storage.TypeS3Stream
+    conn.Bucket = u.Host
+    conn.Path = strings.TrimPrefix(u.Path, "/")
 	case "fs":
 		conn.Type = storage.TypeFS
 		conn.Path = strings.TrimPrefix(cStr, "fs://")

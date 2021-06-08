@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/karrick/godirwalk"
-	"github.com/larrabee/ratelimit"
-	"github.com/larrabee/s3sync/storage"
-	"github.com/pkg/xattr"
 	"io"
 	"io/ioutil"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/karrick/godirwalk"
+	"github.com/larrabee/ratelimit"
+	"github.com/larrabee/s3sync/storage"
+	"github.com/pkg/xattr"
 )
 
 const tempFileSuffixLen = 8
@@ -188,7 +189,10 @@ func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 		return err
 	}
 
+  dataSize := int64(len(data))
+
 	obj.Content = &data
+  obj.ContentLength = &dataSize
 
 	if err := st.GetObjectMeta(obj); err != nil {
 		return err
