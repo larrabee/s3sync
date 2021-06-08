@@ -189,10 +189,10 @@ func (st *FSStorage) GetObjectContent(obj *storage.Object) error {
 		return err
 	}
 
-  dataSize := int64(len(data))
+	dataSize := int64(len(data))
 
 	obj.Content = &data
-  obj.ContentLength = &dataSize
+	obj.ContentLength = &dataSize
 
 	if err := st.GetObjectMeta(obj); err != nil {
 		return err

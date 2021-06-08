@@ -30,7 +30,7 @@ type S3StreamStorage struct {
 	ctx           context.Context
 	listMarker    *string
 	rlBucket      ratelimit.Bucket
-  uploader      *s3manager.Uploader
+	uploader      *s3manager.Uploader
 }
 
 // NewS3Storage return new configured S3 storage.
@@ -65,7 +65,7 @@ func NewS3StreamStorage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, aw
 		sess.Config.Region = aws.String("us-east-1")
 	}
 
-  uploader := s3manager.NewUploader(sess)
+uploader := s3manager.NewUploader(sess)
 
 	st := S3StreamStorage{
 		awsBucket:     &bucketName,
@@ -77,7 +77,7 @@ func NewS3StreamStorage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, aw
 		retryInterval: retryDelay,
 		ctx:           context.TODO(),
 		rlBucket:      ratelimit.NewFakeBucket(),
-    uploader:      uploader,
+		uploader:      uploader,
 	}
 
 	return &st
@@ -135,12 +135,12 @@ func (st *S3StreamStorage) List(output chan<- *storage.Object) error {
 // PutObject saves object to S3.
 // PutObject ignore VersionId, it always save object as latest version.
 func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
-  if (obj.ContentStream == nil) {
-    return errors.New("object has no contentStream");
-  }
+	if (obj.ContentStream == nil) {
+		return errors.New("object has no contentStream");
+	}
 
-  rlReader := ratelimit.NewReadCloser(obj.ContentStream, st.rlBucket);
-  defer rlReader.Close()
+	rlReader := ratelimit.NewReadCloser(obj.ContentStream, st.rlBucket);
+	defer rlReader.Close()
 	input := &s3manager.UploadInput{
 		Bucket:             st.awsBucket,
 		Key:                aws.String(st.prefix + *obj.Key),
@@ -155,9 +155,9 @@ func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
 		StorageClass:       obj.StorageClass,
 	}
 
-  if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {
-    return err
-  }
+	if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {
+		return err
+	}
 
 
 	if obj.AccessControlPolicy != nil {
@@ -188,10 +188,10 @@ func (st *S3StreamStorage) GetObjectContent(obj *storage.Object) error {
 		return err
 	}
 
-  obj.Content = nil
+	obj.Content = nil
 	obj.ContentStream = result.Body
 	obj.ContentType = result.ContentType
-  obj.ContentLength = result.ContentLength
+	obj.ContentLength = result.ContentLength
 	obj.ContentDisposition = result.ContentDisposition
 	obj.ContentEncoding = result.ContentEncoding
 	obj.ContentLanguage = result.ContentLanguage

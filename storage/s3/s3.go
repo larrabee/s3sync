@@ -187,7 +187,7 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 	data := buf.Bytes()
 	obj.Content = &data
 	obj.ContentType = result.ContentType
-  obj.ContentLength = result.ContentLength
+	obj.ContentLength = result.ContentLength
 	obj.ContentDisposition = result.ContentDisposition
 	obj.ContentEncoding = result.ContentEncoding
 	obj.ContentLanguage = result.ContentLanguage

@@ -21,7 +21,7 @@ const (
 	TypeS3 Type = iota + 1
 	TypeS3Versioned
 	TypeFS
-  TypeS3Stream
+	TypeS3Stream
 )
 
 // Object contain content and metadata of S3 object.
@@ -30,8 +30,8 @@ type Object struct {
 	ETag                *string                 `json:"e_tag"`
 	Mtime               *time.Time              `json:"mtime"`
 	Content             *[]byte                 `json:"-"`
-  ContentStream       io.ReadCloser           `json:"-"`
-  ContentLength       *int64                 `json:"-"`
+	ContentStream       io.ReadCloser           `json:"-"`
+	ContentLength       *int64                 `json:"-"`
 	ContentType         *string                 `json:"content_type"`
 	ContentDisposition  *string                 `json:"content_disposition"`
 	ContentEncoding     *string                 `json:"content_encoding"`
