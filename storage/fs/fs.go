@@ -150,7 +150,15 @@ func (st *FSStorage) PutObject(obj *storage.Object) error {
 	}
 	defer f.Close()
 
-	objReader := bytes.NewReader(*obj.Content)
+  // Implement a fallback for FS to handle io.Reader implementations natively
+  var objReader io.Reader
+  if obj.ContentStream != nil {
+    objReader = obj.ContentStream
+    defer obj.ContentStream.Close()
+  } else {
+    objReader = bytes.NewReader(*obj.Content)
+  }
+
 	if _, err := io.Copy(f, ratelimit.NewReader(objReader, st.rlBucket)); err != nil {
 		return err
 	}
