@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/url"
 	"strings"
@@ -130,7 +131,21 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 // PutObject saves object to S3.
 // PutObject ignore VersionId, it always save object as latest version.
 func (st *S3Storage) PutObject(obj *storage.Object) error {
-	objReader := bytes.NewReader(*obj.Content)
+  var objReader io.ReadSeeker
+  if obj.Content == nil {
+    if obj.ContentStream == nil {
+      return errors.New("object has no content")
+    }
+    buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(obj.ContentLength)))
+    if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), obj.ContentStream); err != nil {
+      return err
+    }
+    obj.ContentStream.Close()
+    objReader = bytes.NewReader(buf.Bytes())
+  } else {
+	  objReader = bytes.NewReader(*obj.Content)
+  }
+
 	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
 
 	input := &s3.PutObjectInput{
