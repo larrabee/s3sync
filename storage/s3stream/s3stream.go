@@ -1,8 +1,10 @@
 package s3stream
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/url"
 	"strings"
 	"time"
@@ -65,7 +67,7 @@ func NewS3StreamStorage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, aw
 		sess.Config.Region = aws.String("us-east-1")
 	}
 
-uploader := s3manager.NewUploader(sess)
+	uploader := s3manager.NewUploader(sess)
 
 	st := S3StreamStorage{
 		awsBucket:     &bucketName,
@@ -135,12 +137,20 @@ func (st *S3StreamStorage) List(output chan<- *storage.Object) error {
 // PutObject saves object to S3.
 // PutObject ignore VersionId, it always save object as latest version.
 func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
+	// Check which input format to use, prefer stream, add fallback to buffer
+	var readStream io.Reader
 	if (obj.ContentStream == nil) {
+		// object
+		if obj.Content != nil {
+			readStream = bytes.NewReader(*obj.Content)
+		}
 		return errors.New("object has no contentStream");
+	} else {
+		readStream = obj.ContentStream
+		defer obj.ContentStream.Close()
 	}
 
-	rlReader := ratelimit.NewReadCloser(obj.ContentStream, st.rlBucket);
-	defer rlReader.Close()
+	rlReader := ratelimit.NewReader(readStream, st.rlBucket);
 	input := &s3manager.UploadInput{
 		Bucket:             st.awsBucket,
 		Key:                aws.String(st.prefix + *obj.Key),
@@ -158,7 +168,6 @@ func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
 	if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {
 		return err
 	}
-
 
 	if obj.AccessControlPolicy != nil {
 		inputAcl := &s3.PutObjectAclInput{
