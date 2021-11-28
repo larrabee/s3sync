@@ -29,8 +29,6 @@ const (
 	HandleErrOther = 64
 )
 
-
-
 const letterBytes = "abcdefghijklmnopqrstuvwxyz0123456789"
 const (
 	letterIdxBits = 6                    // 6 bits to represent a letter index
@@ -57,4 +55,3 @@ func GetInsecureRandString(n int) string {
 
 	return sb.String()
 }
-

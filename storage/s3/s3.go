@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
@@ -11,6 +12,7 @@ import (
 	"github.com/larrabee/ratelimit"
 	"github.com/larrabee/s3sync/storage"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -33,13 +35,18 @@ type S3Storage struct {
 // NewS3Storage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration) *S3Storage {
+func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool) *S3Storage {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 	sess.Config.S3ForcePathStyle = aws.Bool(true)
 	sess.Config.Region = aws.String(awsRegion)
 	sess.Config.Retryer = &Retryer{RetryCnt: retryCnt, RetryDelay: retryDelay}
+
+	if skipSSLVerify {
+		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		sess.Config.HTTPClient = &http.Client{Transport: tr}
+	}
 
 	if awsNoSign {
 		sess.Config.Credentials = credentials.AnonymousCredentials

@@ -16,7 +16,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 	switch cli.Source.Type {
 	case storage.TypeS3:
 		sourceStorage = s3.NewS3Storage(cli.SourceNoSign, cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint,
-			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
+			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval, cli.SkipSSLVerify,
 		)
 	case storage.TypeFS:
 		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, os.Getpagesize()*256*32, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
@@ -25,7 +25,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 	switch cli.Target.Type {
 	case storage.TypeS3:
 		targetStorage = s3.NewS3Storage(cli.TargetNoSign, cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint,
-			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
+			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval, cli.SkipSSLVerify,
 		)
 	case storage.TypeFS:
 		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
@@ -106,15 +106,15 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 
 	if cli.FilterDirs {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:   "FilterObjectsDirs",
-			Fn:     collection.FilterObjectsDirs,
+			Name: "FilterObjectsDirs",
+			Fn:   collection.FilterObjectsDirs,
 		})
 	}
 
 	if cli.FilterDirsNot {
 		syncGroup.AddPipeStep(pipeline.Step{
-			Name:   "FilterObjectsDirsNot",
-			Fn:     collection.FilterObjectsDirsNot,
+			Name: "FilterObjectsDirsNot",
+			Fn:   collection.FilterObjectsDirsNot,
 		})
 	}
 

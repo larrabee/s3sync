@@ -88,14 +88,15 @@ type args struct {
 	ErrorHandlingMask uint8  `arg:"--error-handling" help:"Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors"`
 	DisableHTTP2      bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 	ListBuffer        uint   `arg:"--list-buffer" help:"Size of list buffer"`
+	SkipSSLVerify     bool   `arg:"--skip-ssl-verify" help:"Disable SSL verification for S3"`
 	// Rate Limit
 	RateLimitObjPerSec uint   `arg:"--ratelimit-objects" help:"Rate limit objects per second"`
 	RateLimitBandwidth string `arg:"--ratelimit-bandwidth" help:"Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G"`
 }
 
-// VersionId return program version string on human format
+// Version return program version string on human format
 func (args) Version() string {
-	return fmt.Sprintf("VersionId: %v, commit: %v, built at: %v", version, commit, date)
+	return fmt.Sprintf("Version: %v, commit: %v, built at: %v", version, commit, date)
 }
 
 // Description return program description string
