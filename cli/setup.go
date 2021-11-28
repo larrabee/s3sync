@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/pipeline/collection"
 	"github.com/larrabee/s3sync/storage"
 	"github.com/larrabee/s3sync/storage/fs"
 	"github.com/larrabee/s3sync/storage/s3"
-	"os"
+	"github.com/larrabee/s3sync/storage/s3stream"
 )
 
 func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsParsed) error {
@@ -18,6 +20,10 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 		sourceStorage = s3.NewS3Storage(cli.SourceNoSign, cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint,
 			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval, cli.SkipSSLVerify,
 		)
+	case storage.TypeS3Stream:
+		sourceStorage = s3stream.NewS3StreamStorage(cli.SourceNoSign, cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint,
+			cli.Source.Bucket, cli.Source.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
+		)
 	case storage.TypeFS:
 		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, os.Getpagesize()*256*32, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
 	}
@@ -26,6 +32,10 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 	case storage.TypeS3:
 		targetStorage = s3.NewS3Storage(cli.TargetNoSign, cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint,
 			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval, cli.SkipSSLVerify,
+		)
+	case storage.TypeS3Stream:
+		targetStorage = s3stream.NewS3StreamStorage(cli.TargetNoSign, cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint,
+			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval,
 		)
 	case storage.TypeFS:
 		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)

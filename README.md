@@ -117,6 +117,8 @@ Examples:
 ```s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 --se "http://127.0.0.1:7484" --te "http://127.0.0.1:7484" -w 128 s3://shared s3://shared_new```
 * Sync one Amazon bucket directory to another Amazon bucket:  
 ```s3sync --tk KEY2 --ts SECRET2 --sk KEY1 --ss SECRET1 -w 128 s3://shared/test/ s3://shared_new```
+* Use streaming S3 transfers (reduces memory, might be slower for small files):
+```s3sync --sk KEY --ss SECRET --tk KEY --ts SECRET -w 128 s3s://shared/test/ s3s://shared_new```
 
 SOURCE and TARGET should be a directory. Syncing of single file are not supported (This will not work `s3sync --sk KEY --ss SECRET s3://shared/megafile.zip fs:///opt/backups/s3/`)  
 
