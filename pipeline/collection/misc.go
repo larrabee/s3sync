@@ -69,6 +69,21 @@ var StorageClassUpdater pipeline.StepFn = func(group *pipeline.Group, stepNum in
 	}
 }
 
+// CacheControlUpdater updates the cache control.
+var CacheControlUpdater pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error) {
+	info := group.GetStepInfo(stepNum)
+	cfg, ok := info.Config.(string)
+	if !ok {
+		errChan <- &pipeline.StepConfigurationError{StepName: info.Name, StepNum: stepNum}
+	}
+	for obj := range input {
+		if ok {
+			obj.CacheControl = &cfg
+			output <- obj
+		}
+	}
+}
+
 // PipelineRateLimit read objects from input and slow down pipeline processing speed to given rate (obj/sec).
 //
 // This filter read configuration from Step.Config and assert it type to uint type.

@@ -193,6 +193,14 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
+	if cli.S3CacheControl != "" {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "CacheControlUpdater",
+			Fn:     collection.CacheControlUpdater,
+			Config: cli.S3CacheControl,
+		})
+	}
+
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:       "UploadObj",
 		Fn:         collection.UploadObjectData,
