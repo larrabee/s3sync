@@ -10,8 +10,11 @@ import (
 // In some cases S3 return ETag with "W/" prefix which mean that it not strong ETag.
 // For easier compare we remove this prefix.
 func StrongEtag(s *string) *string {
-	etag := strings.TrimPrefix(*s, "W/")
-	return &etag
+	if s != nil {
+		etag := strings.TrimPrefix(*s, "W/")
+		return &etag
+	}
+	return s
 }
 
 // ErrHandlingMask is is a bitmask for storing error handling settings.
