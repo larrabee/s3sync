@@ -201,6 +201,14 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
+	if cli.S3ServerSideEncryption != "" {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name:   "ServerSideEncryption",
+			Fn:     collection.ServerSideEncryptionUpdater,
+			Config: cli.S3ServerSideEncryption,
+		})
+	}
+
 	syncGroup.AddPipeStep(pipeline.Step{
 		Name:       "UploadObj",
 		Fn:         collection.UploadObjectData,
