@@ -57,12 +57,13 @@ type args struct {
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
 	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
 	// S3 config
-	S3Retry         uint   `arg:"--s3-retry" help:"Max numbers of retries to sync file"`
-	S3RetryInterval uint   `arg:"--s3-retry-sleep" help:"Sleep interval (sec) between sync retries on error"`
-	S3Acl           string `arg:"--s3-acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
-	S3CacheControl  string `arg:"--s3-cache-control" help:"Cache-Control header for uploaded files."`
-	S3StorageClass  string `arg:"--s3-storage-class" help:"S3 Storage Class for uploaded files."`
-	S3KeysPerReq    int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
+	S3Retry                uint   `arg:"--s3-retry" help:"Max numbers of retries to sync file"`
+	S3RetryInterval        uint   `arg:"--s3-retry-sleep" help:"Sleep interval (sec) between sync retries on error"`
+	S3Acl                  string `arg:"--s3-acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
+	S3CacheControl         string `arg:"--s3-cache-control" help:"Cache-Control header for uploaded files."`
+	S3StorageClass         string `arg:"--s3-storage-class" help:"S3 Storage Class for uploaded files."`
+	S3KeysPerReq           int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
+	S3ServerSideEncryption string `arg:"--s3-sse" help:"Use server-side encryption, if specified valid options are \"AES256\" and \"aws:kms\"."`
 	// FS config
 	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
 	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions"`
@@ -114,6 +115,7 @@ func GetCliArgs() (cli argsParsed, err error) {
 	rawCli.S3RetryInterval = 0
 	rawCli.S3Acl = ""
 	rawCli.S3KeysPerReq = 1000
+	rawCli.S3ServerSideEncryption = ""
 	rawCli.OnFail = "fatal"
 	rawCli.FSDirPerm = "0755"
 	rawCli.FSFilePerm = "0644"
@@ -135,6 +137,19 @@ func GetCliArgs() (cli argsParsed, err error) {
 		break
 	default:
 		p.Fail("--acl must be one of \"copy, private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
+	}
+
+	switch strings.ToLower(cli.args.S3ServerSideEncryption) {
+	case "":
+		break
+	case "aes256":
+		cli.args.S3ServerSideEncryption = "AES256"
+		break
+	case "aws:kms":
+		cli.args.S3ServerSideEncryption = "aws:kms"
+		break
+	default:
+		p.Fail("--s3-sse must be one of \"\", \"AES256\" or \"aws:kms\"")
 	}
 
 	cli.ErrorHandlingMask = storage.ErrHandlingMask(cli.args.ErrorHandlingMask)
