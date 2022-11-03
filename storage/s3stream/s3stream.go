@@ -165,6 +165,10 @@ func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
 		StorageClass:       obj.StorageClass,
 	}
 
+	if obj.ServerSideEncryption != nil {
+		input.ServerSideEncryption = aws.String(*obj.ServerSideEncryption)
+	}
+
 	if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {
 		return err
 	}

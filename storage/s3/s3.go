@@ -155,17 +155,21 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
 
 	input := &s3.PutObjectInput{
-		Bucket:             st.awsBucket,
-		Key:                aws.String(st.prefix + *obj.Key),
-		Body:               rlReader,
-		ContentType:        obj.ContentType,
-		ContentDisposition: obj.ContentDisposition,
-		ContentEncoding:    obj.ContentEncoding,
-		ContentLanguage:    obj.ContentLanguage,
-		ACL:                obj.ACL,
-		Metadata:           obj.Metadata,
-		CacheControl:       obj.CacheControl,
-		StorageClass:       obj.StorageClass,
+		Bucket:                 st.awsBucket,
+		Key:                    aws.String(st.prefix + *obj.Key),
+		Body:                   rlReader,
+		ContentType:            obj.ContentType,
+		ContentDisposition:     obj.ContentDisposition,
+		ContentEncoding:        obj.ContentEncoding,
+		ContentLanguage:        obj.ContentLanguage,
+		ACL:                    obj.ACL,
+		Metadata:               obj.Metadata,
+		CacheControl:           obj.CacheControl,
+		StorageClass:           obj.StorageClass,
+	}
+
+	if obj.ServerSideEncryption != nil {
+		input.ServerSideEncryption = aws.String(*obj.ServerSideEncryption)
 	}
 
 	if _, err := st.awsSvc.PutObjectWithContext(st.ctx, input); err != nil {

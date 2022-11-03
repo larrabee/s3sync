@@ -26,23 +26,24 @@ const (
 
 // Object contain content and metadata of S3 object.
 type Object struct {
-	Key                 *string                 `json:"-"`
-	ETag                *string                 `json:"e_tag"`
-	Mtime               *time.Time              `json:"mtime"`
-	Content             *[]byte                 `json:"-"`
-	ContentStream       io.ReadCloser           `json:"-"`
-	ContentLength       *int64                  `json:"-"`
-	ContentType         *string                 `json:"content_type"`
-	ContentDisposition  *string                 `json:"content_disposition"`
-	ContentEncoding     *string                 `json:"content_encoding"`
-	ContentLanguage     *string                 `json:"content_language"`
-	Metadata            map[string]*string      `json:"metadata"`
-	ACL                 *string                 `json:"acl"`
-	CacheControl        *string                 `json:"cache_control"`
-	VersionId           *string                 `json:"version_id"`
-	IsLatest            *bool                   `json:"-"`
-	StorageClass        *string                 `json:"storage_class"`
-	AccessControlPolicy *s3.AccessControlPolicy `json:"access_control_policy"`
+	Key                  *string                 `json:"-"`
+	ETag                 *string                 `json:"e_tag"`
+	Mtime                *time.Time              `json:"mtime"`
+	Content              *[]byte                 `json:"-"`
+	ContentStream        io.ReadCloser           `json:"-"`
+	ContentLength        *int64                  `json:"-"`
+	ContentType          *string                 `json:"content_type"`
+	ContentDisposition   *string                 `json:"content_disposition"`
+	ContentEncoding      *string                 `json:"content_encoding"`
+	ContentLanguage      *string                 `json:"content_language"`
+	Metadata             map[string]*string      `json:"metadata"`
+	ACL                  *string                 `json:"acl"`
+	CacheControl         *string                 `json:"cache_control"`
+	VersionId            *string                 `json:"version_id"`
+	IsLatest             *bool                   `json:"-"`
+	StorageClass         *string                 `json:"storage_class"`
+	AccessControlPolicy  *s3.AccessControlPolicy `json:"access_control_policy"`
+	ServerSideEncryption *string                 `json:"server_side_encryption"`
 }
 
 // Storage interface.
