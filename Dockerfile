@@ -1,5 +1,5 @@
 # Build in Docker container
-FROM golang:1.17.6 as builder
+FROM golang:1.19.2 as builder
 
 ENV CGO_ENABLED 0
 WORKDIR /src/s3sync
