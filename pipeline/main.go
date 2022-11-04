@@ -57,7 +57,7 @@ func (group *Group) AddPipeStep(step Step) {
 func (group *Group) GetStepsInfo() []StepInfo {
 	res := make([]StepInfo, len(group.steps))
 	for i := range group.steps {
-		res[i] = StepInfo{Stats: group.steps[i].stats,
+		res[i] = StepInfo{Stats: &group.steps[i].stats,
 			Name:   group.steps[i].Name,
 			Num:    i,
 			Config: group.steps[i].Config,
@@ -68,7 +68,7 @@ func (group *Group) GetStepsInfo() []StepInfo {
 
 // GetStepInfo return info about step with given sequential number.
 func (group *Group) GetStepInfo(stepNum int) StepInfo {
-	return StepInfo{Stats: group.steps[stepNum].stats,
+	return StepInfo{Stats: &group.steps[stepNum].stats,
 		Name:   group.steps[stepNum].Name,
 		Num:    stepNum,
 		Config: group.steps[stepNum].Config,
@@ -105,7 +105,7 @@ func copyErr(group *Group, stepNum int) {
 	for e := range group.steps[stepNum].errChan {
 		if !IsContextCancelErr(e) {
 			Log.Debugf("Recv pipeline err: %s", e)
-			group.steps[stepNum].stats.Error += 1
+			group.steps[stepNum].stats.Error.Add(1)
 			group.errChan <- &PipelineError{StepName: group.steps[stepNum].Name, StepNum: stepNum, Err: e}
 		}
 	}
@@ -114,7 +114,7 @@ func copyErr(group *Group, stepNum int) {
 
 func copyOutput(group *Group, stepNum int) {
 	for obj := range group.steps[stepNum].intOutChan {
-		group.steps[stepNum].stats.Output += 1
+		group.steps[stepNum].stats.Output.Add(1)
 		group.steps[stepNum].outChan <- obj
 	}
 	close(group.steps[stepNum].outChan)
@@ -123,7 +123,7 @@ func copyOutput(group *Group, stepNum int) {
 func copyInput(group *Group, stepNum int) {
 	if stepNum > 0 {
 		for obj := range group.steps[stepNum-1].outChan {
-			group.steps[stepNum].stats.Input += 1
+			group.steps[stepNum].stats.Input.Add(1)
 			group.steps[stepNum].intInChan <- obj
 		}
 	}

@@ -92,6 +92,7 @@ type args struct {
 	DisableHTTP2      bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
 	ListBuffer        uint   `arg:"--list-buffer" help:"Size of list buffer"`
 	SkipSSLVerify     bool   `arg:"--skip-ssl-verify" help:"Disable SSL verification for S3"`
+	Profiler          bool   `arg:"--profiler" help:"Enable profiler on :8080"`
 	// Rate Limit
 	RateLimitObjPerSec uint   `arg:"--ratelimit-objects" help:"Rate limit objects per second"`
 	RateLimitBandwidth string `arg:"--ratelimit-bandwidth" help:"Set bandwidth rate limit, byte/s, Allow suffixes: K, M, G"`

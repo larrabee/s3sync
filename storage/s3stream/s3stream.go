@@ -152,21 +152,18 @@ func (st *S3StreamStorage) PutObject(obj *storage.Object) error {
 
 	rlReader := ratelimit.NewReader(readStream, st.rlBucket)
 	input := &s3manager.UploadInput{
-		Bucket:             st.awsBucket,
-		Key:                aws.String(st.prefix + *obj.Key),
-		Body:               rlReader,
-		ContentType:        obj.ContentType,
-		ContentDisposition: obj.ContentDisposition,
-		ContentEncoding:    obj.ContentEncoding,
-		ContentLanguage:    obj.ContentLanguage,
-		ACL:                obj.ACL,
-		Metadata:           obj.Metadata,
-		CacheControl:       obj.CacheControl,
-		StorageClass:       obj.StorageClass,
-	}
-
-	if obj.ServerSideEncryption != nil {
-		input.ServerSideEncryption = aws.String(*obj.ServerSideEncryption)
+		Bucket:               st.awsBucket,
+		Key:                  aws.String(st.prefix + *obj.Key),
+		Body:                 rlReader,
+		ContentType:          obj.ContentType,
+		ContentDisposition:   obj.ContentDisposition,
+		ContentEncoding:      obj.ContentEncoding,
+		ContentLanguage:      obj.ContentLanguage,
+		ACL:                  obj.ACL,
+		Metadata:             obj.Metadata,
+		CacheControl:         obj.CacheControl,
+		StorageClass:         obj.StorageClass,
+		ServerSideEncryption: obj.ServerSideEncryption,
 	}
 
 	if _, err := st.uploader.UploadWithContext(st.ctx, input); err != nil {

@@ -8,6 +8,8 @@ import (
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
 	"github.com/sirupsen/logrus"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -39,6 +41,11 @@ func init() {
 	cli, err = GetCliArgs()
 	if err != nil {
 		log.Fatalf("cli args parsing failed with error: %s", err)
+	}
+	if cli.Profiler {
+		go func() {
+			log.Errorf("Profiler error: %s", http.ListenAndServe(":8080", nil))
+		}()
 	}
 	if cli.ShowProgress {
 		live = uilive.New()
@@ -76,8 +83,14 @@ func main() {
 		go printLiveStats(ctx, &syncGroup)
 	}
 
-	syncStatus := syncStatusUnknown
+	syncStatus := HandleErrors(sysStopChan, cancel, syncGroup)
 
+	printFinalStats(&syncGroup, syncStatus)
+	log.Exit(int(syncStatus))
+}
+
+func HandleErrors(sysStopChan chan os.Signal, cancel context.CancelFunc, syncGroup pipeline.Group) syncStatus {
+	syncStatus := syncStatusUnknown
 WaitLoop:
 	for {
 		select {
@@ -134,7 +147,5 @@ WaitLoop:
 			}
 		}
 	}
-
-	printFinalStats(&syncGroup, syncStatus)
-	log.Exit(int(syncStatus))
+	return syncStatus
 }

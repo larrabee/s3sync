@@ -44,6 +44,7 @@ func NewFSStorage(dir string, filePerm, dirPerm os.FileMode, bufSize int, extend
 		xattr:         extendedMeta && isXattrSupported(),
 		rlBucket:      ratelimit.NewFakeBucket(),
 		listErrorMask: listErrorMode,
+		atomicWrite:   atomicWrite,
 	}
 
 	if extendedMeta && !isXattrSupported() {

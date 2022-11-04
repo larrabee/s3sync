@@ -16,7 +16,7 @@ func printLiveStats(ctx context.Context, syncGroup *pipeline.Group) {
 		default:
 			dur := time.Since(syncGroup.StartTime).Seconds()
 			for _, val := range syncGroup.GetStepsInfo() {
-				_, _ = fmt.Fprintf(live, "%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input, val.Stats.Output, float64(val.Stats.Output)/dur, val.Stats.Error)
+				_, _ = fmt.Fprintf(live, "%d %s: Input: %d; Output: %d (%.f obj/sec); Errors: %d\n", val.Num, val.Name, val.Stats.Input.Load(), val.Stats.Output.Load(), float64(val.Stats.Output.Load())/dur, val.Stats.Error.Load())
 			}
 			_, _ = fmt.Fprintf(live, "Duration: %s\n", time.Since(syncGroup.StartTime).String())
 			time.Sleep(time.Second)
@@ -30,11 +30,11 @@ func printFinalStats(syncGroup *pipeline.Group, status syncStatus) {
 		log.WithFields(logrus.Fields{
 			"stepNum":        val.Num,
 			"stepName":       val.Name,
-			"InputObj":       val.Stats.Input,
-			"OutputObj":      val.Stats.Output,
-			"ErrorObj":       val.Stats.Error,
-			"InputObjSpeed":  float64(val.Stats.Input) / dur,
-			"OutputObjSpeed": float64(val.Stats.Output) / dur,
+			"InputObj":       val.Stats.Input.Load(),
+			"OutputObj":      val.Stats.Output.Load(),
+			"ErrorObj":       val.Stats.Error.Load(),
+			"InputObjSpeed":  float64(val.Stats.Input.Load()) / dur,
+			"OutputObjSpeed": float64(val.Stats.Output.Load()) / dur,
 		}).Info("Pipeline step finished")
 	}
 	log.WithFields(logrus.Fields{

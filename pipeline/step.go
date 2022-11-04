@@ -3,9 +3,10 @@ package pipeline
 import (
 	"github.com/larrabee/s3sync/storage"
 	"sync"
+	"sync/atomic"
 )
 
-//StepFn implement the type of pipeline Step function.
+// StepFn implement the type of pipeline Step function.
 type StepFn func(group *Group, stepNum int, input <-chan *storage.Object, output chan<- *storage.Object, errChan chan<- error)
 
 // Step contain configuration of pipeline step and it's internal structure.
@@ -27,14 +28,14 @@ type Step struct {
 
 // StepStats to keep basic step statistics.
 type StepStats struct {
-	Input  uint64
-	Output uint64
-	Error  uint64
+	Input  atomic.Uint64
+	Output atomic.Uint64
+	Error  atomic.Uint64
 }
 
 // StepInfo is used to represent step information, statistic and the step configuration interface.
 type StepInfo struct {
-	Stats  StepStats
+	Stats  *StepStats
 	Name   string
 	Num    int
 	Config interface{}
