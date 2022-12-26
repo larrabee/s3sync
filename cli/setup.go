@@ -11,10 +11,13 @@ import (
 	"github.com/larrabee/s3sync/storage/fs"
 	"github.com/larrabee/s3sync/storage/s3"
 	"github.com/larrabee/s3sync/storage/s3stream"
+	"github.com/larrabee/s3sync/storage/swift"
 )
 
 func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsParsed) error {
 	var sourceStorage, targetStorage storage.Storage
+	var err error
+
 	switch cli.Source.Type {
 	case storage.TypeS3:
 		sourceStorage = s3.NewS3Storage(cli.SourceNoSign, cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint,
@@ -26,6 +29,11 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 		)
 	case storage.TypeFS:
 		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, os.Getpagesize()*256*32, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
+	case storage.TypeSwift:
+		sourceStorage, err = swift.NewStorage(cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path, cli.SkipSSLVerify)
+		if err != nil {
+			return err
+		}
 	}
 
 	switch cli.Target.Type {
@@ -39,6 +47,13 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 		)
 	case storage.TypeFS:
 		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
+	case storage.TypeSwift:
+		targetStorage, err = swift.NewStorage(cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint, cli.Target.Bucket, cli.Target.Path, cli.SkipSSLVerify)
+		if err != nil {
+			return err
+		}
+
+		// func NewStorage(user, key, tenant, domain, authUrl string, bucketName, prefix string, skipSSLVerify bool) (*Storage, error) {
 	}
 
 	if sourceStorage == nil {

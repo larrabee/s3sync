@@ -6,7 +6,7 @@ import (
 )
 
 // Retryer implements basic retry logic
-//You can implement the request.Retryer interface.
+// You can implement the request.Retryer interface.
 type Retryer struct {
 	// RetryCnt is the number of max retries that will be performed.
 	// By default, this is zero.

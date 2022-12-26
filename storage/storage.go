@@ -22,6 +22,7 @@ const (
 	TypeS3Versioned
 	TypeFS
 	TypeS3Stream
+	TypeSwift
 )
 
 // Object contain content and metadata of S3 object.

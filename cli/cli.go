@@ -10,8 +10,9 @@ import (
 	"unicode"
 
 	"github.com/alexflint/go-arg"
-	"github.com/larrabee/s3sync/storage"
 	"github.com/mattn/go-isatty"
+
+	"github.com/larrabee/s3sync/storage"
 )
 
 var (
@@ -43,11 +44,11 @@ type args struct {
 	// Source config
 	Source         string `arg:"positional"`
 	SourceNoSign   bool   `arg:"--sn" help:"Don't sign request to source AWS for anonymous access"`
-	SourceKey      string `arg:"--sk" help:"Source AWS key"`
-	SourceSecret   string `arg:"--ss" help:"Source AWS session secret"`
-	SourceToken    string `arg:"--st" help:"Source AWS token"`
-	SourceRegion   string `arg:"--sr" help:"Source AWS Region"`
-	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint"`
+	SourceKey      string `arg:"--sk" help:"Source AWS key / Swift User"`
+	SourceSecret   string `arg:"--ss" help:"Source AWS secret / Swift Key"`
+	SourceToken    string `arg:"--st" help:"Source AWS token / Swift Tenant"`
+	SourceRegion   string `arg:"--sr" help:"Source AWS Region / Swift Domain"`
+	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint / Swift Auth URL"`
 	// Target config
 	Target         string `arg:"positional"`
 	TargetNoSign   bool   `arg:"--tn" help:"Don't sign request to target AWS for anonymous access"`
@@ -223,6 +224,10 @@ func parseConn(cStr string) (conn connect, err error) {
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	case "s3s":
 		conn.Type = storage.TypeS3Stream
+		conn.Bucket = u.Host
+		conn.Path = strings.TrimPrefix(u.Path, "/")
+	case "swift":
+		conn.Type = storage.TypeSwift
 		conn.Bucket = u.Host
 		conn.Path = strings.TrimPrefix(u.Path, "/")
 	case "fs":
