@@ -109,7 +109,7 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 	if (cli.Source.Type == storage.TypeFS) &&
 		((cli.FilterMtimeAfter > 0) || (cli.FilterMtimeBefore > 0) || cli.FilterModified) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
-	} else if (len(cli.FilterCT) > 0) || (len(cli.FilterCTNot) > 0) {
+	} else if (cli.Source.Type != storage.TypeSwift) && (len(cli.FilterCT) > 0) || (len(cli.FilterCTNot) > 0) {
 		syncGroup.AddPipeStep(loadObjMetaStep)
 	}
 
