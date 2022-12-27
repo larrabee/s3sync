@@ -27,6 +27,7 @@ type argsParsed struct {
 	Source             connect
 	Target             connect
 	S3RetryInterval    time.Duration
+	SwiftRetryInterval time.Duration
 	FSFilePerm         os.FileMode
 	FSDirPerm          os.FileMode
 	RateLimitBandwidth int
@@ -66,10 +67,13 @@ type args struct {
 	S3KeysPerReq           int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
 	S3ServerSideEncryption string `arg:"--s3-sse" help:"Use server-side encryption, if specified valid options are \"AES256\" and \"aws:kms\"."`
 	// FS config
-	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions"`
-	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions"`
+	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions" default:"0644"`
+	FSDirPerm      string `arg:"--fs-dir-perm" help:"Dir permissions" default:"0755"`
 	FSDisableXattr bool   `arg:"--fs-disable-xattr" help:"Disable FS xattr for storing metadata"`
 	FSAtomicWrite  bool   `arg:"--fs-atomic-write" help:"Enable FS atomic writes. New files will be written to temp file and renamed"`
+	// Swift config
+	SwiftRetry         uint `arg:"--swift-retry" help:"Max numbers of retries to sync file"`
+	SwiftRetryInterval uint `arg:"--swift-retry-sleep" help:"Sleep interval (sec) between sync retries on error"`
 	// Filters
 	FilterExt         []string `arg:"--filter-ext,separate" help:"Sync only files with given extensions"`
 	FilterExtNot      []string `arg:"--filter-not-ext,separate" help:"Skip files with given extensions"`
@@ -83,15 +87,15 @@ type args struct {
 	FilterDirs        bool     `arg:"--filter-dirs" help:"Sync only files, that ends with slash (/)"`
 	FilterDirsNot     bool     `arg:"--filter-not-dirs" help:"Skip files that ends with slash (/)"`
 	// Misc
-	Workers           uint   `arg:"-w" help:"Workers count"`
+	Workers           uint   `arg:"-w" help:"Workers count" default:"16"`
 	Debug             bool   `arg:"-d" help:"Show debug logging"`
 	SyncLog           bool   `arg:"--sync-log" help:"Show sync log"`
 	SyncLogFormat     string `arg:"--sync-log-format" help:"Format of sync log. Possible values: json"`
 	ShowProgress      bool   `arg:"--sync-progress,-p" help:"Show sync progress"`
-	OnFail            string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead)"`
+	OnFail            string `arg:"--on-fail,-f" help:"Action on failed. Possible values: fatal, skip, skipmissing (DEPRECATED, use --error-handling instead)" default:"fatal"`
 	ErrorHandlingMask uint8  `arg:"--error-handling" help:"Controls error handling. Sum of the values: 1 for ignoring NotFound errors, 2 for ignoring PermissionDenied errors OR 255 to ignore all errors"`
 	DisableHTTP2      bool   `arg:"--disable-http2" help:"Disable HTTP2 for http client"`
-	ListBuffer        uint   `arg:"--list-buffer" help:"Size of list buffer"`
+	ListBuffer        uint   `arg:"--list-buffer" help:"Size of list buffer" default:"1000"`
 	SkipSSLVerify     bool   `arg:"--skip-ssl-verify" help:"Disable SSL verification for S3"`
 	Profiler          bool   `arg:"--profiler" help:"Enable profiler on :8080"`
 	// Rate Limit
@@ -112,19 +116,6 @@ func (args) Description() string {
 // GetCliArgs parse cli args, set default values, check input values and return argsParsed struct
 func GetCliArgs() (cli argsParsed, err error) {
 	rawCli := args{}
-	rawCli.Workers = 16
-	rawCli.S3Retry = 0
-	rawCli.S3RetryInterval = 0
-	rawCli.S3Acl = ""
-	rawCli.S3KeysPerReq = 1000
-	rawCli.S3ServerSideEncryption = ""
-	rawCli.OnFail = "fatal"
-	rawCli.FSDirPerm = "0755"
-	rawCli.FSFilePerm = "0644"
-	rawCli.ListBuffer = 1000
-	rawCli.RateLimitObjPerSec = 0
-	rawCli.ErrorHandlingMask = 0
-	rawCli.SyncLogFormat = ""
 
 	p := arg.MustParse(&rawCli)
 	cli.args = rawCli

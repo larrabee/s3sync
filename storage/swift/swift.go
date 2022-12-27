@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gophercloud/gophercloud"
@@ -31,7 +32,7 @@ type Storage struct {
 // NewStorage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewStorage(user, key, tenant, domain, authUrl string, bucketName, prefix string, skipSSLVerify bool) (*Storage, error) {
+func NewStorage(user, key, tenant, domain, authUrl string, bucketName, prefix string, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool) (*Storage, error) {
 	st := &Storage{
 		ctx:      context.TODO(),
 		rlBucket: ratelimit.NewFakeBucket(),
@@ -60,6 +61,14 @@ func NewStorage(user, key, tenant, domain, authUrl string, bucketName, prefix st
 	client, err := openstack.NewObjectStorageV1(provider, gophercloud.EndpointOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	client.RetryFunc = func(context context.Context, method, url string, options *gophercloud.RequestOpts, err error, failCount uint) error {
+		if failCount > retryCnt {
+			return err
+		}
+		time.Sleep(retryDelay)
+		return nil
 	}
 
 	st.conn = client

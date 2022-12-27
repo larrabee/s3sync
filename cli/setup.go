@@ -30,7 +30,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 	case storage.TypeFS:
 		sourceStorage = fs.NewFSStorage(cli.Source.Path, cli.FSFilePerm, cli.FSDirPerm, os.Getpagesize()*256*32, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
 	case storage.TypeSwift:
-		sourceStorage, err = swift.NewStorage(cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path, cli.SkipSSLVerify)
+		sourceStorage, err = swift.NewStorage(cli.SourceKey, cli.SourceSecret, cli.SourceToken, cli.SourceRegion, cli.SourceEndpoint, cli.Source.Bucket, cli.Source.Path, cli.SwiftRetry, cli.SwiftRetryInterval, cli.SkipSSLVerify)
 		if err != nil {
 			return err
 		}
@@ -48,7 +48,7 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 	case storage.TypeFS:
 		targetStorage = fs.NewFSStorage(cli.Target.Path, cli.FSFilePerm, cli.FSDirPerm, 0, !cli.FSDisableXattr, cli.ErrorHandlingMask, cli.FSAtomicWrite)
 	case storage.TypeSwift:
-		targetStorage, err = swift.NewStorage(cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint, cli.Target.Bucket, cli.Target.Path, cli.SkipSSLVerify)
+		targetStorage, err = swift.NewStorage(cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint, cli.Target.Bucket, cli.Target.Path, cli.SwiftRetry, cli.SwiftRetryInterval, cli.SkipSSLVerify)
 		if err != nil {
 			return err
 		}
