@@ -3,10 +3,12 @@ package storage
 import (
 	"context"
 	"errors"
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"os"
+	"github.com/gophercloud/gophercloud"
 )
 
 func IsErrNotExist(err error) bool {
@@ -20,6 +22,12 @@ func IsErrNotExist(err error) bool {
 	if errors.Is(err, os.ErrNotExist) {
 		return true
 	}
+
+	var sErr gophercloud.ErrDefault404
+	if errors.As(err, &sErr) {
+		return true
+	}
+
 	return false
 }
 
@@ -34,6 +42,12 @@ func IsErrPermission(err error) bool {
 	if errors.Is(err, os.ErrPermission) {
 		return true
 	}
+
+	var sErr gophercloud.ErrDefault403
+	if errors.As(err, &sErr) {
+		return true
+	}
+
 	return false
 }
 

@@ -4,16 +4,18 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/gosuri/uilive"
-	"github.com/larrabee/s3sync/pipeline"
-	"github.com/larrabee/s3sync/storage"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+
+	"github.com/gosuri/uilive"
+	"github.com/sirupsen/logrus"
+
+	"github.com/larrabee/s3sync/pipeline"
+	"github.com/larrabee/s3sync/storage"
 )
 
 var cli argsParsed
