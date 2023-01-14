@@ -5,18 +5,20 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/larrabee/ratelimit"
+
 	"github.com/larrabee/s3sync/storage"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 )
 
 // S3Storage configuration.

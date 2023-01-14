@@ -64,7 +64,7 @@ type args struct {
 	S3Acl                  string `arg:"--s3-acl" help:"S3 ACL for uploaded files. Possible values: private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control"`
 	S3CacheControl         string `arg:"--s3-cache-control" help:"Cache-Control header for uploaded files."`
 	S3StorageClass         string `arg:"--s3-storage-class" help:"S3 Storage Class for uploaded files."`
-	S3KeysPerReq           int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request"`
+	S3KeysPerReq           int64  `arg:"--s3-keys-per-req" help:"Max numbers of keys retrieved via List request" default:"1000"`
 	S3ServerSideEncryption string `arg:"--s3-sse" help:"Use server-side encryption, if specified valid options are \"AES256\" and \"aws:kms\"."`
 	// FS config
 	FSFilePerm     string `arg:"--fs-file-perm" help:"File permissions" default:"0644"`
