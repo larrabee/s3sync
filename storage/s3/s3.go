@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"io"
 	"net/http"
 	"net/url"
@@ -190,6 +191,12 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 	return nil
 }
 
+func withAcceptEncoding(e string) request.Option {
+	return func(r *request.Request) {
+		r.HTTPRequest.Header.Add("Accept-Encoding", e)
+	}
+}
+
 // GetObjectContent read object content and metadata from S3.
 func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 	input := &s3.GetObjectInput{
@@ -198,7 +205,7 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input)
+	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input, withAcceptEncoding("gzip"))
 	if err != nil {
 		return err
 	}
