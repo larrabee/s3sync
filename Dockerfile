@@ -9,5 +9,6 @@ RUN go mod vendor && \
 
 # Create s3sync image
 FROM alpine
+RUN apk --no-cache add ca-certificates
 COPY --link --from=builder /src/s3sync/s3sync /s3sync
 ENTRYPOINT ["/s3sync"]
