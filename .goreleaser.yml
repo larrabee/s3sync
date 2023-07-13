@@ -21,15 +21,19 @@ builds:
     - 6
     - 7
 archives:
-- replacements:
-    darwin: MacOS
-    linux: Linux
-    windows: Windows
-    freebsd: FreeBSD
-    netbsd: NetBSD
-    openbsd: OpenBSD
-    386: i386
-    amd64: x86_64
+  - id: s3sync
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- if eq .Os "darwin" }}MacOS_
+      {{- else if eq .Os "linux" }}Linux_
+      {{- else if eq .Os "windows" }}Windows_
+      {{- else if eq .Os "freebsd" }}FreeBSD_
+      {{- else if eq .Os "netbsd" }}NetBSD_
+      {{- else if eq .Os "openbsd" }}OpenBSD_
+      {{- else }}{{ .Os }}_{{ end }}
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
 checksum:
   name_template: 'checksums.txt'
 snapshot:
