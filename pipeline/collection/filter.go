@@ -131,7 +131,7 @@ var FilterObjectsByMtimeAfter pipeline.StepFn = func(group *pipeline.Group, step
 	}
 	for obj := range input {
 		if ok {
-			if obj.Mtime.Unix() > cfg {
+			if obj.Mtime.Unix() >= cfg {
 				output <- obj
 			}
 		}
