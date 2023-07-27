@@ -3,9 +3,10 @@ FROM golang:1.20.5-alpine as builder
 
 ENV CGO_ENABLED 0
 WORKDIR /src/s3sync
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . ./
-RUN go mod vendor && \
-    go build -o s3sync ./cli
+RUN go build -o s3sync ./cli
 
 # Create s3sync image
 FROM alpine
