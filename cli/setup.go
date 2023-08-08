@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/larrabee/s3sync/storage/az"
 	"os"
 
 	"github.com/larrabee/s3sync/pipeline"
@@ -53,7 +54,9 @@ func setupStorages(ctx context.Context, syncGroup *pipeline.Group, cli *argsPars
 			return err
 		}
 
-		// func NewStorage(user, key, tenant, domain, authUrl string, bucketName, prefix string, skipSSLVerify bool) (*Storage, error) {
+	case storage.TypeAzBlob:
+		targetStorage = az.NewAzStorage(cli.TargetNoSign, cli.TargetKey, cli.TargetSecret, cli.TargetToken, cli.TargetRegion, cli.TargetEndpoint,
+			cli.Target.Bucket, cli.Target.Path, cli.S3KeysPerReq, cli.S3Retry, cli.S3RetryInterval, cli.SkipSSLVerify)
 	}
 
 	if sourceStorage == nil {

@@ -23,6 +23,7 @@ const (
 	TypeFS
 	TypeS3Stream
 	TypeSwift
+	TypeAzBlob
 )
 
 // Object contain content and metadata of S3 object.
