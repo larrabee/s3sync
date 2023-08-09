@@ -94,22 +94,22 @@ func (st *AzStorage) List(output chan<- *storage.Object) error {
 // PutObject saves object to AZ.
 // PutObject ignore VersionId, it always save object as latest version.
 func (st *AzStorage) PutObject(obj *storage.Object) error {
-	var objReader io.ReadSeeker
+	var objReader io.Reader
 	if obj.Content == nil {
 		if obj.ContentStream == nil {
 			return errors.New("object has no content")
 		}
-		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(obj.ContentLength)))
-		if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), obj.ContentStream); err != nil {
-			return err
-		}
-		obj.ContentStream.Close()
-		objReader = bytes.NewReader(buf.Bytes())
+		defer func(ContentStream io.ReadCloser) {
+			err := ContentStream.Close()
+			if err != nil {
+				storage.Log.Warnf("failed to close input stream: %v", err)
+			}
+		}(obj.ContentStream)
+		objReader = obj.ContentStream
 	} else {
 		objReader = bytes.NewReader(*obj.Content)
 	}
-
-	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
+	rlReader := ratelimit.NewReader(objReader, st.rlBucket)
 	options := azblob.UploadStreamOptions{
 		BlockSize:               0,
 		Concurrency:             0,

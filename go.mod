@@ -3,6 +3,7 @@ module github.com/larrabee/s3sync
 go 1.18
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/alexflint/go-arg v1.4.2
 	github.com/aws/aws-sdk-go v1.44.166
@@ -16,7 +17,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/alexflint/go-scalar v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
