@@ -101,6 +101,34 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
+	if cli.FilterDirs {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsDirs",
+			Fn:   collection.FilterObjectsDirs,
+		})
+	}
+
+	if cli.FilterDirsNot {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsDirsNot",
+			Fn:   collection.FilterObjectsDirsNot,
+		})
+	}
+
+	if cli.FilterExist {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsExist",
+			Fn:   collection.FilterObjectsExist,
+		})
+	}
+
+	if cli.FilterExistNot {
+		syncGroup.AddPipeStep(pipeline.Step{
+			Name: "FilterObjectsExistNot",
+			Fn:   collection.FilterObjectsExistNot,
+		})
+	}
+
 	loadObjMetaStep := pipeline.Step{
 		Name:       "LoadObjMeta",
 		Fn:         collection.LoadObjectMeta,
@@ -129,20 +157,6 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		})
 	}
 
-	if cli.FilterDirs {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name: "FilterObjectsDirs",
-			Fn:   collection.FilterObjectsDirs,
-		})
-	}
-
-	if cli.FilterDirsNot {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name: "FilterObjectsDirsNot",
-			Fn:   collection.FilterObjectsDirsNot,
-		})
-	}
-
 	if len(cli.FilterCT) > 0 {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name:   "FilterObjByCT",
@@ -163,20 +177,6 @@ func setupPipeline(syncGroup *pipeline.Group, cli *argsParsed) {
 		syncGroup.AddPipeStep(pipeline.Step{
 			Name: "FilterObjectsModified",
 			Fn:   collection.FilterObjectsModified,
-		})
-	}
-
-	if cli.FilterExist {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name: "FilterObjectsExist",
-			Fn:   collection.FilterObjectsExist,
-		})
-	}
-
-	if cli.FilterExistNot {
-		syncGroup.AddPipeStep(pipeline.Step{
-			Name: "FilterObjectsExistNot",
-			Fn:   collection.FilterObjectsExistNot,
 		})
 	}
 
