@@ -58,3 +58,14 @@ func GetInsecureRandString(n int) string {
 
 	return sb.String()
 }
+
+func ToPtr[K any](val K) *K {
+	return &val
+}
+
+func ToValue[K any](val *K) K {
+	if val == nil {
+		return *new(K)
+	}
+	return *val
+}

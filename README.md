@@ -22,6 +22,7 @@ With 128 workers we get avg sync speed around 2k obj/sec (small objects 1-20 kb)
 * Each object is loaded into RAM. So you need `<avg object size> * <workers count>` RAM.  
   If you don't have enough RAM, you can use swap. A large (32-64 Gb) swap on SSD does not affect the tool performance.  
   This happened because the tool was designed to synchronize billions of small files and optimized for this workload.
+  To avoid this you can use streaming storage drivers (now available only for S3 and FS). It's uses less RAM, but slower on small objects.
 
 ## Usage
 ```

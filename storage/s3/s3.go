@@ -5,12 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws/request"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -34,12 +35,13 @@ type S3Storage struct {
 	ctx           context.Context
 	listMarker    *string
 	rlBucket      ratelimit.Bucket
+	serverGzip    bool
 }
 
 // NewS3Storage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool) *S3Storage {
+func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool, serverGzip bool) *S3Storage {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
@@ -83,6 +85,7 @@ func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegio
 		retryInterval: retryDelay,
 		ctx:           context.TODO(),
 		rlBucket:      ratelimit.NewFakeBucket(),
+		serverGzip:    serverGzip,
 	}
 
 	return &st
@@ -105,7 +108,7 @@ func (st *S3Storage) WithRateLimit(limit int) error {
 
 // List S3 bucket and send founded objects to chan.
 func (st *S3Storage) List(output chan<- *storage.Object) error {
-	listObjectsFn := func(p *s3.ListObjectsOutput, lastPage bool) bool {
+	listObjectsFn := func(p *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, o := range p.Contents {
 			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
 			key = strings.Replace(key, st.prefix, "", 1)
@@ -117,19 +120,19 @@ func (st *S3Storage) List(output chan<- *storage.Object) error {
 				IsLatest:     aws.Bool(true),
 			}
 		}
-		st.listMarker = p.Marker
+		st.listMarker = p.NextContinuationToken
 		return !lastPage // continue paging
 	}
 
-	input := &s3.ListObjectsInput{
-		Bucket:       st.awsBucket,
-		Prefix:       aws.String(st.prefix),
-		MaxKeys:      aws.Int64(st.keysPerReq),
-		EncodingType: aws.String(s3.EncodingTypeUrl),
-		Marker:       st.listMarker,
+	input := &s3.ListObjectsV2Input{
+		Bucket:            st.awsBucket,
+		Prefix:            aws.String(st.prefix),
+		MaxKeys:           aws.Int64(st.keysPerReq),
+		EncodingType:      aws.String(s3.EncodingTypeUrl),
+		ContinuationToken: st.listMarker,
 	}
 
-	if err := st.awsSvc.ListObjectsPagesWithContext(st.ctx, input, listObjectsFn); err != nil {
+	if err := st.awsSvc.ListObjectsV2PagesWithContext(st.ctx, input, listObjectsFn); err != nil {
 		return err
 	}
 	storage.Log.Debugf("Listing bucket finished")
@@ -191,12 +194,6 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 	return nil
 }
 
-func withAcceptEncoding(e string) request.Option {
-	return func(r *request.Request) {
-		r.HTTPRequest.Header.Add("Accept-Encoding", e)
-	}
-}
-
 // GetObjectContent read object content and metadata from S3.
 func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 	input := &s3.GetObjectInput{
@@ -205,7 +202,12 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 		VersionId: obj.VersionId,
 	}
 
-	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input, withAcceptEncoding("gzip"))
+	opts := make([]request.Option, 0, 1)
+	if !st.serverGzip {
+		opts = append(opts, withAcceptEncoding("gzip"))
+	}
+
+	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input, opts...)
 	if err != nil {
 		return err
 	}

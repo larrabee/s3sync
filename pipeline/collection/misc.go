@@ -2,9 +2,10 @@ package collection
 
 import (
 	"github.com/larrabee/ratelimit"
+	"github.com/sirupsen/logrus"
+
 	"github.com/larrabee/s3sync/pipeline"
 	"github.com/larrabee/s3sync/storage"
-	"github.com/sirupsen/logrus"
 )
 
 // Terminator like a /dev/null
@@ -27,9 +28,10 @@ var Logger pipeline.StepFn = func(group *pipeline.Group, stepNum int, input <-ch
 	for obj := range input {
 		if ok {
 			cfg.WithFields(logrus.Fields{
-				"key":          *obj.Key,
-				"size":         *obj.ContentLength,
-				"Content-Type": *obj.ContentType,
+				"key":              storage.ToValue(obj.Key),
+				"size":             storage.ToValue(obj.ContentLength),
+				"Content-Type":     storage.ToValue(obj.ContentType),
+				"Content-Encoding": storage.ToValue(obj.ContentEncoding),
 			}).Infof("Sync file")
 			output <- obj
 		}
