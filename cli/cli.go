@@ -46,6 +46,7 @@ type args struct {
 	Source         string `arg:"positional"`
 	SourceNoSign   bool   `arg:"--sn" help:"Don't sign request to source AWS for anonymous access"`
 	SourceKey      string `arg:"--sk" help:"Source AWS key / Swift User"`
+	SourceProfile  string `arg:"--sp" help:"Source Profile"`
 	SourceSecret   string `arg:"--ss" help:"Source AWS secret / Swift Key"`
 	SourceToken    string `arg:"--st" help:"Source AWS token / Swift Tenant"`
 	SourceRegion   string `arg:"--sr" help:"Source AWS Region / Swift Domain"`
@@ -54,6 +55,7 @@ type args struct {
 	Target         string `arg:"positional"`
 	TargetNoSign   bool   `arg:"--tn" help:"Don't sign request to target AWS for anonymous access"`
 	TargetKey      string `arg:"--tk" help:"Target AWS key"`
+	TargetProfile  string `arg:"--tp" help:"Source Profile"`
 	TargetSecret   string `arg:"--ts" help:"Target AWS secret"`
 	TargetToken    string `arg:"--tt" help:"Target AWS session token"`
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`

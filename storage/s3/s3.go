@@ -39,7 +39,7 @@ type S3Storage struct {
 // NewS3Storage return new configured S3 storage.
 //
 // You should always create new storage with this constructor.
-func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool) *S3Storage {
+func NewS3Storage(awsNoSign bool, awsProfile,  awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool) *S3Storage {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
@@ -54,6 +54,8 @@ func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegio
 
 	if awsNoSign {
 		sess.Config.Credentials = credentials.AnonymousCredentials
+	} else if awsProfile != "" {
+		sess.Config.Credentials = credentials.NewSharedCredentials("", awsProfile)
 	} else if awsAccessKey != "" || awsSecretKey != "" {
 		sess.Config.Credentials = credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, awsToken)
 	} else if _, err := sess.Config.Credentials.Get(); err != nil {
