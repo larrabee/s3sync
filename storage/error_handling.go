@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -26,6 +27,10 @@ func IsErrNotExist(err error) bool {
 	var sErr gophercloud.ErrDefault404
 	if errors.As(err, &sErr) {
 		return true
+	}
+	var azErr *azcore.ResponseError
+	if errors.As(err, &azErr) {
+		return azErr.StatusCode >= 400 && azErr.StatusCode < 410
 	}
 
 	return false

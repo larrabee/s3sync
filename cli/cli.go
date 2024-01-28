@@ -45,19 +45,19 @@ type args struct {
 	// Source config
 	Source         string `arg:"positional"`
 	SourceNoSign   bool   `arg:"--sn" help:"Don't sign request to source AWS for anonymous access"`
-	SourceKey      string `arg:"--sk" help:"Source AWS key / Swift User"`
-	SourceSecret   string `arg:"--ss" help:"Source AWS secret / Swift Key"`
+	SourceKey      string `arg:"--sk" help:"Source AWS key / Swift User / AZ storage account"`
+	SourceSecret   string `arg:"--ss" help:"Source AWS secret / Swift Key / AZ account key"`
 	SourceToken    string `arg:"--st" help:"Source AWS token / Swift Tenant"`
 	SourceRegion   string `arg:"--sr" help:"Source AWS Region / Swift Domain"`
-	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint / Swift Auth URL"`
+	SourceEndpoint string `arg:"--se" help:"Source AWS Endpoint / Swift Auth URL / AZ Endpoint"`
 	// Target config
 	Target         string `arg:"positional"`
 	TargetNoSign   bool   `arg:"--tn" help:"Don't sign request to target AWS for anonymous access"`
-	TargetKey      string `arg:"--tk" help:"Target AWS key"`
-	TargetSecret   string `arg:"--ts" help:"Target AWS secret"`
+	TargetKey      string `arg:"--tk" help:"Target AWS key / AZ storage account"`
+	TargetSecret   string `arg:"--ts" help:"Target AWS secret / AZ account key"`
 	TargetToken    string `arg:"--tt" help:"Target AWS session token"`
 	TargetRegion   string `arg:"--tr" help:"Target AWS Region"`
-	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint"`
+	TargetEndpoint string `arg:"--te" help:"Target AWS Endpoint / AZ Endpoint"`
 	// S3 config
 	S3Retry                uint   `arg:"--s3-retry" help:"Max numbers of retries to sync file"`
 	S3RetryInterval        uint   `arg:"--s3-retry-sleep" help:"Sleep interval (sec) between sync retries on error"`
@@ -225,6 +225,10 @@ func parseConn(cStr string) (conn connect, err error) {
 	case "fs":
 		conn.Type = storage.TypeFS
 		conn.Path = strings.TrimPrefix(cStr, "fs://")
+	case "az":
+		conn.Type = storage.TypeAzBlob
+		conn.Bucket = u.Host
+		conn.Path = strings.TrimPrefix(u.Path, "/")
 	default:
 		conn.Type = storage.TypeFS
 		conn.Path = cStr
