@@ -10,9 +10,8 @@ require (
 	github.com/karrick/godirwalk v1.16.1
 	github.com/larrabee/ratelimit v1.0.4
 	github.com/mattn/go-isatty v0.0.12
-	github.com/ncw/swift/v2 v2.0.1
 	github.com/pkg/xattr v0.4.2
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.8.3
 )
 
 require (
