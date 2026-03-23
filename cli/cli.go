@@ -124,24 +124,18 @@ func GetCliArgs() (cli argsParsed, err error) {
 	cli.args.S3Acl = strings.ToLower(cli.args.S3Acl)
 	switch cli.args.S3Acl {
 	case "", "copy":
-		break
 	case "private", "public-read", "public-read-write", "aws-exec-read":
-		break
 	case "authenticated-read", "bucket-owner-read", "bucket-owner-full-control":
-		break
 	default:
 		p.Fail("--acl must be one of \"copy, private, public-read, public-read-write, aws-exec-read, authenticated-read, bucket-owner-read, bucket-owner-full-control\"")
 	}
 
 	switch strings.ToLower(cli.args.S3ServerSideEncryption) {
 	case "":
-		break
 	case "aes256":
 		cli.args.S3ServerSideEncryption = "AES256"
-		break
 	case "aws:kms":
 		cli.args.S3ServerSideEncryption = "aws:kms"
-		break
 	default:
 		p.Fail("--s3-sse must be one of \"\", \"AES256\" or \"aws:kms\"")
 	}
