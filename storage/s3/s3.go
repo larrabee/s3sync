@@ -11,13 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/request"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/larrabee/ratelimit"
 
 	"github.com/larrabee/s3sync/storage"
@@ -25,8 +23,7 @@ import (
 
 // S3Storage configuration.
 type S3Storage struct {
-	awsSvc        *s3.S3
-	awsSession    *session.Session
+	awsSvc        *awss3.Client
 	awsBucket     *string
 	prefix        string
 	keysPerReq    int64
@@ -42,43 +39,48 @@ type S3Storage struct {
 //
 // You should always create new storage with this constructor.
 func NewS3Storage(awsNoSign bool, awsAccessKey, awsSecretKey, awsToken, awsRegion, endpoint, bucketName, prefix string, keysPerReq int64, retryCnt uint, retryDelay time.Duration, skipSSLVerify bool, serverGzip bool) *S3Storage {
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-	sess.Config.S3ForcePathStyle = aws.Bool(true)
-	sess.Config.Region = aws.String(awsRegion)
-	sess.Config.Retryer = &Retryer{RetryCnt: retryCnt, RetryDelay: retryDelay}
+	region := awsRegion
+	if region == "" {
+		region = "us-east-1"
+	}
 
-	if skipSSLVerify {
-		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-		sess.Config.HTTPClient = &http.Client{Transport: tr}
+	cfgOpts := []func(*config.LoadOptions) error{
+		config.WithRegion(region),
+		config.WithRetryer(func() aws.Retryer {
+			return &Retryer{RetryCnt: retryCnt, RetryInterval: retryDelay}
+		}),
 	}
 
 	if awsNoSign {
-		sess.Config.Credentials = credentials.AnonymousCredentials
+		cfgOpts = append(cfgOpts, config.WithCredentialsProvider(aws.AnonymousCredentials{}))
 	} else if awsAccessKey != "" || awsSecretKey != "" {
-		sess.Config.Credentials = credentials.NewStaticCredentials(awsAccessKey, awsSecretKey, awsToken)
-	} else if _, err := sess.Config.Credentials.Get(); err != nil {
-		storage.Log.Debugf("Failed to load credentials from default config")
-		cred := credentials.NewChainCredentials(
-			[]credentials.Provider{
-				&credentials.EnvProvider{},
-				defaults.RemoteCredProvider(*defaults.Config(), defaults.Handlers()),
-			})
-		sess.Config.Credentials = cred
+		cfgOpts = append(cfgOpts, config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(awsAccessKey, awsSecretKey, awsToken),
+		))
 	}
 
-	if endpoint != "" {
-		sess.Config.Endpoint = aws.String(endpoint)
+	if skipSSLVerify {
+		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		cfgOpts = append(cfgOpts, config.WithHTTPClient(&http.Client{Transport: tr}))
 	}
-	if aws.StringValue(sess.Config.Region) == "" {
-		sess.Config.Region = aws.String("us-east-1")
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), cfgOpts...)
+	if err != nil {
+		storage.Log.Debugf("Failed to load AWS config: %v", err)
+	}
+
+	s3ClientOpts := []func(*awss3.Options){
+		func(o *awss3.Options) { o.UsePathStyle = true },
+	}
+	if endpoint != "" {
+		s3ClientOpts = append(s3ClientOpts, func(o *awss3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
 	}
 
 	st := S3Storage{
 		awsBucket:     &bucketName,
-		awsSession:    sess,
-		awsSvc:        s3.New(sess),
+		awsSvc:        awss3.NewFromConfig(cfg, s3ClientOpts...),
 		prefix:        prefix,
 		keysPerReq:    keysPerReq,
 		retryCnt:      retryCnt,
@@ -108,36 +110,36 @@ func (st *S3Storage) WithRateLimit(limit int) error {
 
 // List S3 bucket and send founded objects to chan.
 func (st *S3Storage) List(output chan<- *storage.Object) error {
-	listObjectsFn := func(p *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, o := range p.Contents {
-			key, _ := url.QueryUnescape(aws.StringValue(o.Key))
+	input := &awss3.ListObjectsV2Input{
+		Bucket:            st.awsBucket,
+		Prefix:            aws.String(st.prefix),
+		MaxKeys:           aws.Int32(int32(st.keysPerReq)),
+		EncodingType:      s3types.EncodingTypeUrl,
+		ContinuationToken: st.listMarker,
+	}
+
+	paginator := awss3.NewListObjectsV2Paginator(st.awsSvc, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(st.ctx)
+		if err != nil {
+			return err
+		}
+		for _, o := range page.Contents {
+			key, _ := url.QueryUnescape(aws.ToString(o.Key))
 			key = strings.Replace(key, st.prefix, "", 1)
+			isLatest := true
 			output <- &storage.Object{
 				Key:          &key,
 				ETag:         storage.StrongEtag(o.ETag),
 				Mtime:        o.LastModified,
-				StorageClass: o.StorageClass,
-				IsLatest:     aws.Bool(true),
+				StorageClass: aws.String(string(o.StorageClass)),
+				IsLatest:     &isLatest,
 			}
 		}
-		st.listMarker = p.NextContinuationToken
-		return !lastPage // continue paging
-	}
-
-	input := &s3.ListObjectsV2Input{
-		Bucket:            st.awsBucket,
-		Prefix:            aws.String(st.prefix),
-		MaxKeys:           aws.Int64(st.keysPerReq),
-		EncodingType:      aws.String(s3.EncodingTypeUrl),
-		ContinuationToken: st.listMarker,
-	}
-
-	if err := st.awsSvc.ListObjectsV2PagesWithContext(st.ctx, input, listObjectsFn); err != nil {
-		return err
+		st.listMarker = page.NextContinuationToken
 	}
 	storage.Log.Debugf("Listing bucket finished")
 	return nil
-
 }
 
 // PutObject saves object to S3.
@@ -148,7 +150,7 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		if obj.ContentStream == nil {
 			return errors.New("object has no content")
 		}
-		buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(obj.ContentLength)))
+		buf := bytes.NewBuffer(make([]byte, 0, aws.ToInt64(obj.ContentLength)))
 		if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), obj.ContentStream); err != nil {
 			return err
 		}
@@ -160,7 +162,7 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 
 	rlReader := ratelimit.NewReadSeeker(objReader, st.rlBucket)
 
-	input := &s3.PutObjectInput{
+	input := &awss3.PutObjectInput{
 		Bucket:               st.awsBucket,
 		Key:                  aws.String(st.prefix + *obj.Key),
 		Body:                 rlReader,
@@ -168,25 +170,25 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 		ContentDisposition:   obj.ContentDisposition,
 		ContentEncoding:      obj.ContentEncoding,
 		ContentLanguage:      obj.ContentLanguage,
-		ACL:                  obj.ACL,
-		Metadata:             obj.Metadata,
+		ACL:                  s3types.ObjectCannedACL(aws.ToString(obj.ACL)),
+		Metadata:             toAWSMetadata(obj.Metadata),
 		CacheControl:         obj.CacheControl,
-		StorageClass:         obj.StorageClass,
-		ServerSideEncryption: obj.ServerSideEncryption,
+		StorageClass:         s3types.StorageClass(aws.ToString(obj.StorageClass)),
+		ServerSideEncryption: s3types.ServerSideEncryption(aws.ToString(obj.ServerSideEncryption)),
 	}
 
-	if _, err := st.awsSvc.PutObjectWithContext(st.ctx, input); err != nil {
+	if _, err := st.awsSvc.PutObject(st.ctx, input); err != nil {
 		return err
 	}
 
 	if obj.AccessControlPolicy != nil {
-		inputAcl := &s3.PutObjectAclInput{
+		inputAcl := &awss3.PutObjectAclInput{
 			Bucket:              st.awsBucket,
 			Key:                 aws.String(st.prefix + *obj.Key),
 			AccessControlPolicy: obj.AccessControlPolicy,
 		}
 
-		if _, err := st.awsSvc.PutObjectAclWithContext(st.ctx, inputAcl); err != nil {
+		if _, err := st.awsSvc.PutObjectAcl(st.ctx, inputAcl); err != nil {
 			return err
 		}
 	}
@@ -196,23 +198,23 @@ func (st *S3Storage) PutObject(obj *storage.Object) error {
 
 // GetObjectContent read object content and metadata from S3.
 func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
-	input := &s3.GetObjectInput{
+	input := &awss3.GetObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
-	opts := make([]request.Option, 0, 1)
+	optFuncs := make([]func(*awss3.Options), 0, 1)
 	if !st.serverGzip {
-		opts = append(opts, withAcceptEncoding("gzip"))
+		optFuncs = append(optFuncs, withAcceptEncoding("gzip"))
 	}
 
-	result, err := st.awsSvc.GetObjectWithContext(st.ctx, input, opts...)
+	result, err := st.awsSvc.GetObject(st.ctx, input, optFuncs...)
 	if err != nil {
 		return err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0, aws.Int64Value(result.ContentLength)))
+	buf := bytes.NewBuffer(make([]byte, 0, aws.ToInt64(result.ContentLength)))
 	if _, err := io.Copy(ratelimit.NewWriter(buf, st.rlBucket), result.Body); err != nil {
 		return err
 	}
@@ -225,28 +227,28 @@ func (st *S3Storage) GetObjectContent(obj *storage.Object) error {
 	obj.ContentEncoding = result.ContentEncoding
 	obj.ContentLanguage = result.ContentLanguage
 	obj.ETag = storage.StrongEtag(result.ETag)
-	obj.Metadata = result.Metadata
+	obj.Metadata = fromAWSMetadata(result.Metadata)
 	obj.Mtime = result.LastModified
 	obj.CacheControl = result.CacheControl
-	obj.StorageClass = result.StorageClass
+	obj.StorageClass = aws.String(string(result.StorageClass))
 
 	return nil
 }
 
 // GetObjectACL read object ACL from S3.
 func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
-	input := &s3.GetObjectAclInput{
+	input := &awss3.GetObjectAclInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
-	result, err := st.awsSvc.GetObjectAclWithContext(st.ctx, input)
+	result, err := st.awsSvc.GetObjectAcl(st.ctx, input)
 	if err != nil {
 		return err
 	}
 
-	obj.AccessControlPolicy = &s3.AccessControlPolicy{
+	obj.AccessControlPolicy = &s3types.AccessControlPolicy{
 		Grants: result.Grants,
 		Owner:  result.Owner,
 	}
@@ -256,13 +258,13 @@ func (st *S3Storage) GetObjectACL(obj *storage.Object) error {
 
 // GetObjectMeta update object metadata from S3.
 func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
-	input := &s3.HeadObjectInput{
+	input := &awss3.HeadObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
-	result, err := st.awsSvc.HeadObjectWithContext(st.ctx, input)
+	result, err := st.awsSvc.HeadObject(st.ctx, input)
 	if err != nil {
 		return err
 	}
@@ -272,24 +274,51 @@ func (st *S3Storage) GetObjectMeta(obj *storage.Object) error {
 	obj.ContentEncoding = result.ContentEncoding
 	obj.ContentLanguage = result.ContentLanguage
 	obj.ETag = storage.StrongEtag(result.ETag)
-	obj.Metadata = result.Metadata
+	obj.Metadata = fromAWSMetadata(result.Metadata)
 	obj.Mtime = result.LastModified
 	obj.CacheControl = result.CacheControl
-	obj.StorageClass = result.StorageClass
+	obj.StorageClass = aws.String(string(result.StorageClass))
 
 	return nil
 }
 
 // DeleteObject remove object from S3.
 func (st *S3Storage) DeleteObject(obj *storage.Object) error {
-	input := &s3.DeleteObjectInput{
+	input := &awss3.DeleteObjectInput{
 		Bucket:    st.awsBucket,
 		Key:       aws.String(st.prefix + *obj.Key),
 		VersionId: obj.VersionId,
 	}
 
-	if _, err := st.awsSvc.DeleteObjectWithContext(st.ctx, input); err != nil {
+	if _, err := st.awsSvc.DeleteObject(st.ctx, input); err != nil {
 		return err
 	}
 	return nil
+}
+
+// toAWSMetadata converts map[string]*string to the map[string]string expected by SDK v2.
+func toAWSMetadata(m map[string]*string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		if v != nil {
+			result[k] = *v
+		}
+	}
+	return result
+}
+
+// fromAWSMetadata converts the map[string]string returned by SDK v2 to map[string]*string.
+func fromAWSMetadata(m map[string]string) map[string]*string {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]*string, len(m))
+	for k, v := range m {
+		v := v
+		result[k] = &v
+	}
+	return result
 }

@@ -1,52 +1,47 @@
 package s3
 
 import (
-	"github.com/aws/aws-sdk-go/aws/request"
+	"context"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-// Retryer implements basic retry logic
-// You can implement the request.Retryer interface.
+// Retryer implements aws.Retryer with a configurable retry count and fixed delay.
 type Retryer struct {
-	// RetryCnt is the number of max retries that will be performed.
-	// By default, this is zero.
+	// RetryCnt is the maximum number of retries.
 	RetryCnt uint
 
-	// RetryDelay is the minimum retry delay after which retry will be performed.
-	// If not set, the value is 0ns.
-	RetryDelay time.Duration
+	// RetryInterval is the fixed delay between retries.
+	RetryInterval time.Duration
 }
 
-// MaxRetries returns the number of maximum returns the service will use to make
-// an individual API request.
-func (d Retryer) MaxRetries() int {
-	return int(d.RetryCnt)
+// IsErrorRetryable returns true for any error when retries are enabled.
+func (r *Retryer) IsErrorRetryable(_ error) bool {
+	return r.RetryCnt > 0
 }
 
-// RetryRules returns the delay duration before retrying this request again
-func (d Retryer) RetryRules(r *request.Request) time.Duration {
-
-	// if number of max retries is zero, no retries will be performed.
-	if d.RetryCnt == 0 {
-		return 0
-	}
-
-	return d.RetryDelay
+// MaxAttempts returns the total number of attempts (retries + initial attempt).
+func (r *Retryer) MaxAttempts() int {
+	return int(r.RetryCnt) + 1
 }
 
-// ShouldRetry returns true if the request should be retried.
-func (d Retryer) ShouldRetry(r *request.Request) bool {
-
-	// ShouldRetry returns false if number of max retries is 0.
-	if d.RetryCnt == 0 {
-		return false
-	}
-
-	// If one of the other handlers already set the retry state
-	// we don't want to override it based on the service's state
-	if r.Retryable != nil {
-		return *r.Retryable
-	}
-
-	return r.IsErrorRetryable() || r.IsErrorThrottle() || true
+// RetryDelay returns the fixed delay for all retries.
+func (r *Retryer) RetryDelay(_ int, _ error) (time.Duration, error) {
+	return r.RetryInterval, nil
 }
+
+// GetInitialToken returns a no-op token release function.
+func (r *Retryer) GetInitialToken() func(error) error {
+	return nopReleaseToken
+}
+
+// GetRetryToken returns a no-op token release function.
+func (r *Retryer) GetRetryToken(_ context.Context, _ error) (func(error) error, error) {
+	return nopReleaseToken, nil
+}
+
+func nopReleaseToken(_ error) error { return nil }
+
+// Ensure Retryer implements aws.Retryer at compile time.
+var _ aws.Retryer = (*Retryer)(nil)

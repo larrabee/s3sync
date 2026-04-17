@@ -5,18 +5,20 @@ import (
 	"errors"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/gophercloud/gophercloud"
 )
 
 func IsErrNotExist(err error) bool {
-	var aErr awserr.Error
-	if errors.As(err, &aErr) {
-		if (aErr.Code() == s3.ErrCodeNoSuchKey) || (aErr.Code() == "NotFound") {
-			return true
-		}
+	var nsk *s3types.NoSuchKey
+	if errors.As(err, &nsk) {
+		return true
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
+		return true
 	}
 
 	if errors.Is(err, os.ErrNotExist) {
@@ -32,11 +34,9 @@ func IsErrNotExist(err error) bool {
 }
 
 func IsErrPermission(err error) bool {
-	var aErr awserr.Error
-	if errors.As(err, &aErr) {
-		if aErr.Code() == "AccessDenied" {
-			return true
-		}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "AccessDenied" {
+		return true
 	}
 
 	if errors.Is(err, os.ErrPermission) {
@@ -56,16 +56,5 @@ func IsAwsContextCanceled(err error) bool {
 		return false
 	}
 
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	var aErr awserr.Error
-	if ok := errors.As(err, &aErr); ok && aErr.OrigErr() == context.Canceled {
-		return true
-	} else if ok && aErr.Code() == request.CanceledErrorCode {
-		return true
-	}
-
-	return false
+	return errors.Is(err, context.Canceled)
 }

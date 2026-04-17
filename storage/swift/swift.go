@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
@@ -111,7 +110,7 @@ func (st *Storage) List(output chan<- *storage.Object) error {
 				ContentType:   &n.ContentType,
 				Mtime:         &n.LastModified,
 				ContentLength: &n.Bytes,
-				IsLatest:      aws.Bool(true),
+				IsLatest:      storage.ToPtr(true),
 			}
 		}
 		return true, nil

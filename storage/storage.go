@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,7 +43,7 @@ type Object struct {
 	VersionId            *string                 `json:"version_id"`
 	IsLatest             *bool                   `json:"-"`
 	StorageClass         *string                 `json:"storage_class"`
-	AccessControlPolicy  *s3.AccessControlPolicy `json:"access_control_policy"`
+	AccessControlPolicy  *s3types.AccessControlPolicy `json:"access_control_policy"`
 	ServerSideEncryption *string                 `json:"server_side_encryption"`
 }
 

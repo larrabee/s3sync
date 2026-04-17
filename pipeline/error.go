@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/awserr"
+
 	"github.com/larrabee/s3sync/storage"
 )
 
@@ -60,14 +60,5 @@ func (e *ObjectError) Unwrap() error {
 
 // IsContextCancelErr check that input error is caused by a context cancellation.
 func IsContextCancelErr(err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	var aErr awserr.Error
-	if errors.As(err, &aErr) && aErr.OrigErr() == context.Canceled {
-		return true
-	}
-
-	return false
+	return errors.Is(err, context.Canceled)
 }
